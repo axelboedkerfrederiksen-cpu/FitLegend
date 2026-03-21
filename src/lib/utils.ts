@@ -1,5 +1,15 @@
 import { format, formatDistanceToNow, parseISO } from 'date-fns'
 
+/** Races a promise against a timeout. Rejects with Error('timeout') if too slow. */
+export function withTimeout<T>(promise: PromiseLike<T>, ms = 8000): Promise<T> {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('timeout')), ms)
+    ),
+  ])
+}
+
 // Exercises where reps = duration in seconds, no weight
 export const TIMED_CORE_EXERCISES = new Set(['Plank', 'Wall Sit'])
 

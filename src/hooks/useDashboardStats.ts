@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { getExerciseDisplayType } from '@/lib/utils'
+import { getExerciseDisplayType, withTimeout } from '@/lib/utils'
 import { WorkoutWithSets } from '@/lib/types'
 
 export interface DashboardStats {
@@ -11,6 +11,14 @@ export interface DashboardStats {
   weeklyVolume: number | null
   latestPR: { exercise: string; weight: number } | null
   recentWorkouts: WorkoutWithSets[]
+}
+
+const EMPTY_STATS: DashboardStats = {
+  totalWorkouts: null,
+  streak: null,
+  weeklyVolume: null,
+  latestPR: null,
+  recentWorkouts: [],
 }
 
 function computeStreak(createdAts: string[]): number {
@@ -23,7 +31,6 @@ function computeStreak(createdAts: string[]): number {
   const today = new Date().toISOString().slice(0, 10)
   const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
 
-  // Streak must include today or yesterday
   if (uniqueDates[0] !== today && uniqueDates[0] !== yesterday) return 0
 
   let streak = 1
@@ -42,115 +49,136 @@ function computeStreak(createdAts: string[]): number {
 
 function startOfWeek(): string {
   const d = new Date()
-  d.setDate(d.getDate() - d.getDay()) // Sunday = start
+  d.setDate(d.getDate() - d.getDay())
   d.setHours(0, 0, 0, 0)
   return d.toISOString()
 }
 
 export function useDashboardStats(userId: string | null) {
-  const [stats, setStats] = useState<DashboardStats>({
-    totalWorkouts: null,
-    streak: null,
-    weeklyVolume: null,
-    latestPR: null,
-    recentWorkouts: [],
-  })
+  const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!userId) {
       setLoading(false)
       return
     }
 
-    const load = async () => {
-      const supabase = createClient()
+    setLoading(true)
+    setError(false)
 
-      try {
-        // Run queries in parallel
-        const [countRes, datesRes, weekRes, prRes, recentRes] = await Promise.all([
-          // 1. Total workout count
-          supabase
-            .from('workouts')
-            .select('id', { count: 'exact', head: true })
-            .eq('user_id', userId),
+    const supabase = createClient()
 
-          // 2. All workout dates for streak
-          supabase
-            .from('workouts')
-            .select('created_at')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false }),
+    const [countRes, datesRes, weekRes, prRes, recentRes] = await Promise.allSettled([
+      withTimeout(
+        supabase
+          .from('workouts')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId)
+      ),
+      withTimeout(
+        supabase
+          .from('workouts')
+          .select('created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+      ),
+      withTimeout(
+        supabase
+          .from('workouts')
+          .select('id, workout_sets(exercise_name, sets, reps, weight_kg)')
+          .eq('user_id', userId)
+          .gte('created_at', startOfWeek())
+      ),
+      withTimeout(
+        supabase
+          .from('workout_sets')
+          .select('exercise_name, weight_kg')
+          .gt('weight_kg', 0)
+          .order('weight_kg', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      ),
+      withTimeout(
+        supabase
+          .from('workouts')
+          .select('*, workout_sets(*)')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(5)
+      ),
+    ])
 
-          // 3. This week's workouts + sets for volume
-          supabase
-            .from('workouts')
-            .select('id, workout_sets(exercise_name, sets, reps, weight_kg)')
-            .eq('user_id', userId)
-            .gte('created_at', startOfWeek()),
-
-          // 4. Heaviest lift ever (RLS already scopes to this user)
-          supabase
-            .from('workout_sets')
-            .select('exercise_name, weight_kg')
-            .gt('weight_kg', 0)
-            .order('weight_kg', { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-
-          // 5. Recent workouts for the list
-          supabase
-            .from('workouts')
-            .select('*, workout_sets(*)')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(5),
-        ])
-
-        if (countRes.error) console.error('[Stats] count:', countRes.error.message)
-        if (datesRes.error) console.error('[Stats] dates:', datesRes.error.message)
-        if (weekRes.error) console.error('[Stats] week:', weekRes.error.message)
-        if (prRes.error) console.error('[Stats] pr:', prRes.error.message)
-        if (recentRes.error) console.error('[Stats] recent:', recentRes.error.message)
-
-        const streak = computeStreak(
-          (datesRes.data ?? []).map((r) => r.created_at)
-        )
-
-        const weeklyVolume = (weekRes.data ?? []).reduce((sum, workout) => {
-          const sets = (workout.workout_sets ?? []) as Array<{
-            exercise_name: string
-            sets: number
-            reps: number
-            weight_kg: number
-          }>
-          return (
-            sum +
-            sets.reduce((s, set) => {
-              if (getExerciseDisplayType(set.exercise_name) !== 'normal') return s
-              return s + set.sets * set.reps * set.weight_kg
-            }, 0)
-          )
-        }, 0)
-
-        setStats({
-          totalWorkouts: countRes.count ?? null,
-          streak,
-          weeklyVolume,
-          latestPR: prRes.data
-            ? { exercise: prRes.data.exercise_name, weight: prRes.data.weight_kg }
-            : null,
-          recentWorkouts: (recentRes.data as WorkoutWithSets[]) ?? [],
-        })
-      } catch (err) {
-        console.error('[Stats] load threw:', err)
-      } finally {
-        setLoading(false)
-      }
+    // If all failed, set error state
+    const allFailed = [countRes, datesRes, weekRes, prRes, recentRes].every(
+      (r) => r.status === 'rejected'
+    )
+    if (allFailed) {
+      setError(true)
+      setLoading(false)
+      return
     }
 
-    load()
+    // Extract values safely
+    const count =
+      countRes.status === 'fulfilled' && !countRes.value.error
+        ? (countRes.value.count ?? null)
+        : null
+
+    const dates =
+      datesRes.status === 'fulfilled' && !datesRes.value.error
+        ? (datesRes.value.data ?? []).map((r) => r.created_at)
+        : []
+
+    const weekData =
+      weekRes.status === 'fulfilled' && !weekRes.value.error
+        ? (weekRes.value.data ?? [])
+        : []
+
+    const prData =
+      prRes.status === 'fulfilled' && !prRes.value.error
+        ? prRes.value.data
+        : null
+
+    const recentData =
+      recentRes.status === 'fulfilled' && !recentRes.value.error
+        ? (recentRes.value.data as WorkoutWithSets[]) ?? []
+        : []
+
+    const streak = computeStreak(dates)
+
+    const weeklyVolume = weekData.reduce((sum, workout) => {
+      const sets = (workout.workout_sets ?? []) as Array<{
+        exercise_name: string
+        sets: number
+        reps: number
+        weight_kg: number
+      }>
+      return (
+        sum +
+        sets.reduce((s, set) => {
+          if (getExerciseDisplayType(set.exercise_name) !== 'normal') return s
+          return s + set.sets * set.reps * set.weight_kg
+        }, 0)
+      )
+    }, 0)
+
+    setStats({
+      totalWorkouts: count,
+      streak,
+      weeklyVolume,
+      latestPR: prData
+        ? { exercise: prData.exercise_name, weight: prData.weight_kg }
+        : null,
+      recentWorkouts: recentData,
+    })
+    setLoading(false)
   }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { stats, loading }
+  useEffect(() => {
+    load()
+  }, [load])
+
+  return { stats, loading, error, refetch: load }
 }

@@ -23,7 +23,7 @@ function fmtDate(iso: string) {
 
 export default function DashboardPage() {
   const { user, profile, loading: authLoading } = useAuth()
-  const { stats, loading: statsLoading } = useDashboardStats(user?.id ?? null)
+  const { stats, loading: statsLoading, error: statsError, refetch } = useDashboardStats(user?.id ?? null)
 
   if (authLoading) {
     return (
@@ -109,6 +109,8 @@ export default function DashboardPage() {
             >
               {statsLoading ? (
                 <div className="h-7 w-12 rounded animate-pulse mb-1" style={{ background: 'var(--border)' }} />
+              ) : statsError ? (
+                <p className="text-xl font-bold" style={{ color: 'var(--text-muted)' }}>—</p>
               ) : (
                 <p
                   className="text-2xl font-bold"
@@ -128,10 +130,39 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
+
+        {/* Stats retry button */}
+        {statsError && !statsLoading && (
+          <div className="mt-3 flex justify-center">
+            <button
+              onClick={refetch}
+              className="px-4 py-2 rounded-lg text-sm font-semibold"
+              style={{ background: 'var(--accent)', color: '#fff' }}
+            >
+              Couldn&apos;t load stats — tap to retry
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Recent workouts */}
-      {!statsLoading && stats.recentWorkouts.length > 0 && (
+      {statsLoading ? (
+        <div className="px-4 mb-6">
+          <div className="h-4 w-28 rounded animate-pulse mb-3" style={{ background: 'var(--border)' }} />
+          <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+            {[...Array(3)].map((_, i) => (
+              <div
+                key={i}
+                className="h-14 animate-pulse"
+                style={{
+                  background: 'var(--surface)',
+                  borderBottom: i < 2 ? '1px solid var(--border)' : 'none',
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      ) : !statsError && stats.recentWorkouts.length > 0 ? (
         <div className="px-4 mb-6">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Recent workouts</p>
@@ -149,7 +180,7 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Quick links */}
       <div className="px-4">

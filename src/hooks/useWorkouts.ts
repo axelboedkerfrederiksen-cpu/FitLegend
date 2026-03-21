@@ -2,11 +2,13 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { withTimeout } from '@/lib/utils'
 import { WorkoutWithSets, FeedWorkout } from '@/lib/types'
 
 export function useWorkouts(userId: string | null) {
   const [workouts, setWorkouts] = useState<WorkoutWithSets[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const supabase = createClient()
 
   const fetchWorkouts = useCallback(async () => {
@@ -15,16 +17,20 @@ export function useWorkouts(userId: string | null) {
       return
     }
     setLoading(true)
+    setError(false)
     try {
-      const { data, error } = await supabase
-        .from('workouts')
-        .select('*, workout_sets(*)')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
+      const { data, error } = await withTimeout(
+        supabase
+          .from('workouts')
+          .select('*, workout_sets(*)')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+      )
       if (error) console.error('[useWorkouts]', error.message)
       setWorkouts((data as WorkoutWithSets[]) ?? [])
     } catch (err) {
       console.error('[useWorkouts] threw:', err)
+      setError(true)
     } finally {
       setLoading(false)
     }
@@ -34,7 +40,7 @@ export function useWorkouts(userId: string | null) {
     fetchWorkouts()
   }, [fetchWorkouts])
 
-  return { workouts, loading, refetch: fetchWorkouts }
+  return { workouts, loading, error, refetch: fetchWorkouts }
 }
 
 export function useFeedWorkouts(userId: string | null) {

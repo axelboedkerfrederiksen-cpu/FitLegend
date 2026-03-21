@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Search, X, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { withTimeout } from '@/lib/utils'
 import { Exercise } from '@/lib/types'
 
 type MuscleGroup = 'All' | 'Push' | 'Pull' | 'Legs' | 'Core' | 'Cardio'
@@ -22,35 +23,34 @@ export default function ExercisePicker({ selected, onSelectionChange, onNext }: 
   const [filter, setFilter] = useState<MuscleGroup>('All')
   const supabase = createClient()
 
-  useEffect(() => {
-    const load = async () => {
-      const timeout = setTimeout(() => {
-        setError('Request timed out. Check your connection.')
-        setLoading(false)
-      }, 8000)
-      try {
-        const { data, error } = await supabase
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const { data, error } = await withTimeout(
+        supabase
           .from('exercises')
           .select('*')
           .order('muscle_group')
           .order('name')
-        clearTimeout(timeout)
-        if (error) {
-          console.error('[ExercisePicker]', error.message, error.code)
-          setError('Could not load exercises.')
-        } else {
-          setExercises(data ?? [])
-        }
-      } catch (err) {
-        clearTimeout(timeout)
-        console.error('[ExercisePicker] threw:', err)
+      )
+      if (error) {
+        console.error('[ExercisePicker]', error.message, error.code)
         setError('Could not load exercises.')
-      } finally {
-        setLoading(false)
+      } else {
+        setExercises(data ?? [])
       }
+    } catch (err) {
+      console.error('[ExercisePicker] threw:', err)
+      setError('Could not load exercises.')
+    } finally {
+      setLoading(false)
     }
-    load()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    load()
+  }, [load])
 
   const filtered = exercises.filter((ex) => {
     const matchGroup = filter === 'All' || ex.muscle_group === filter
@@ -124,7 +124,16 @@ export default function ExercisePicker({ selected, onSelectionChange, onNext }: 
             />
           </div>
         ) : error ? (
-          <p className="text-center pt-12 text-sm" style={{ color: 'var(--text-muted)' }}>{error}</p>
+          <div className="flex flex-col items-center gap-3 pt-12">
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{error}</p>
+            <button
+              onClick={load}
+              className="px-4 py-2 rounded-lg text-sm font-semibold"
+              style={{ background: 'var(--accent)', color: '#fff' }}
+            >
+              Tap to retry
+            </button>
+          </div>
         ) : filtered.length === 0 ? (
           <p className="text-center pt-12 text-sm" style={{ color: 'var(--text-muted)' }}>No exercises found</p>
         ) : (

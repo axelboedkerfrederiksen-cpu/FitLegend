@@ -19,11 +19,9 @@ const AuthContext = createContext<AuthState>({
   signOut: async () => {},
 })
 
-const supabase = createClient()
-
 async function fetchProfile(userId: string): Promise<Profile | null> {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await createClient()
       .from('profiles')
       .select('*')
       .eq('id', userId)
@@ -58,9 +56,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }, 5000)
 
+    const sb = createClient()
+
     const getUser = async () => {
       try {
-        const { data: { user }, error } = await supabase.auth.getUser()
+        const { data: { user }, error } = await sb.auth.getUser()
         if (error) console.error('[AuthProvider] getUser error:', error.message)
         setUser(user ?? null)
         if (user) {
@@ -75,7 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     getUser()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = sb.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null)
       try {
         if (session?.user) {
@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    await createClient().auth.signOut()
     window.location.href = '/login'
   }
 

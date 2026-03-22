@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Inter, Space_Mono } from 'next/font/google'
+import { Inter, Space_Mono, Barlow_Condensed } from 'next/font/google'
 import './globals.css'
 import ConditionalNavbar from '@/components/ConditionalNavbar'
 import { AuthProvider } from '@/components/AuthProvider'
@@ -15,6 +15,13 @@ const spaceMono = Space_Mono({
   subsets: ['latin'],
   weight: ['400', '700'],
   variable: '--font-mono',
+  display: 'swap',
+})
+
+const barlowCondensed = Barlow_Condensed({
+  subsets: ['latin'],
+  weight: ['600', '700', '800', '900'],
+  variable: '--font-display',
   display: 'swap',
 })
 
@@ -37,7 +44,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${spaceMono.variable}`}>
+    <html lang="en" className={`${inter.variable} ${spaceMono.variable} ${barlowCondensed.variable}`}>
       <body>
         <div className="mx-auto w-full" style={{ maxWidth: 480 }}>
           <AuthProvider>

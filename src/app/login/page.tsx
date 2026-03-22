@@ -10,7 +10,7 @@ export default function LoginPage() {
   async function handleGoogleSignIn() {
     const supabase = createClient()
     const callbackUrl = new URL('/auth/callback', window.location.origin)
-    callbackUrl.searchParams.set('next', '/home')
+    callbackUrl.searchParams.set('next', '/feed')
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: callbackUrl.toString() },

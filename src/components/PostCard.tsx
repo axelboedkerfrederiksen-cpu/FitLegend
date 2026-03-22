@@ -60,11 +60,20 @@ export default function PostCard({ post, currentUserId, unit = 'kg' }: Props) {
     const sb = createClient()
     try {
       if (wasLiked) {
-        await sb.from('post_likes').delete().eq('post_id', post.id).eq('user_id', currentUserId)
+        const { error } = await sb
+          .from('post_likes')
+          .delete()
+          .eq('post_id', post.id)
+          .eq('user_id', currentUserId)
+        if (error) throw error
       } else {
-        await sb.from('post_likes').upsert({ post_id: post.id, user_id: currentUserId }, { onConflict: 'post_id,user_id' })
+        const { error } = await sb
+          .from('post_likes')
+          .upsert({ post_id: post.id, user_id: currentUserId }, { onConflict: 'post_id,user_id' })
+        if (error) throw error
       }
-    } catch {
+    } catch (err) {
+      console.error('[PostCard] toggleLike:', err)
       // Revert on error
       setIsLiked(wasLiked)
       setLikeCount((c) => c + (wasLiked ? 1 : -1))
@@ -146,11 +155,9 @@ export default function PostCard({ post, currentUserId, unit = 'kg' }: Props) {
               fill={isLiked ? 'var(--accent)' : 'none'}
               style={{ color: isLiked ? 'var(--accent)' : 'var(--text-muted)' }}
             />
-            {likeCount > 0 && (
-              <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-                {likeCount}
-              </span>
-            )}
+            <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+              {likeCount} {likeCount === 1 ? 'like' : 'likes'}
+            </span>
           </button>
         </div>
       </div>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Search, X, Users } from 'lucide-react'
+import { Search, X, Users, Heart, Inbox } from 'lucide-react'
 import Link from 'next/link'
 import { useAuth } from '@/components/AuthProvider'
 import { useFeedPosts } from '@/hooks/usePosts'
@@ -10,6 +10,15 @@ import { withTimeout } from '@/lib/utils'
 import { Profile } from '@/lib/types'
 import PostCard from '@/components/PostCard'
 import UserAvatar from '@/components/UserAvatar'
+
+interface LikeInboxItem {
+  id: string
+  created_at: string
+  post_id: string
+  user_id: string
+  exercise_name: string
+  liker: Profile | null
+}
 
 function SearchResult({
   profile,
@@ -74,6 +83,82 @@ export default function FeedPage() {
   const [searchResults, setSearchResults] = useState<(Profile & { is_following: boolean })[]>([])
   const [searching, setSearching] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
+  const [inboxLikes, setInboxLikes] = useState<LikeInboxItem[]>([])
+  const [inboxLoading, setInboxLoading] = useState(false)
+
+  const fetchInbox = useCallback(async () => {
+    if (!user) {
+      setInboxLikes([])
+      return
+    }
+
+    setInboxLoading(true)
+    try {
+      const sb = createClient()
+
+      const { data: myPosts, error: postsError } = await withTimeout(
+        sb
+          .from('posts')
+          .select('id, exercise_name')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(100)
+      )
+
+      if (postsError || !myPosts || myPosts.length === 0) {
+        setInboxLikes([])
+        return
+      }
+
+      const postIds = myPosts.map((p: { id: string }) => p.id)
+      const exerciseByPost = new Map(
+        myPosts.map((p: { id: string; exercise_name: string }) => [p.id, p.exercise_name])
+      )
+
+      const { data: likes, error: likesError } = await withTimeout(
+        sb
+          .from('post_likes')
+          .select('post_id, user_id, created_at')
+          .in('post_id', postIds)
+          .neq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(25)
+      )
+
+      if (likesError || !likes || likes.length === 0) {
+        setInboxLikes([])
+        return
+      }
+
+      const likerIds = [...new Set(likes.map((l: { user_id: string }) => l.user_id))]
+      const { data: likerProfiles } = await withTimeout(
+        sb
+          .from('profiles')
+          .select('*')
+          .in('id', likerIds)
+      )
+
+      const profileById = new Map(
+        ((likerProfiles as Profile[]) ?? []).map((p) => [p.id, p])
+      )
+
+      setInboxLikes(
+        likes.map((l: { post_id: string; user_id: string; created_at: string }, idx: number) => ({
+          id: `${l.post_id}:${l.user_id}:${idx}`,
+          created_at: l.created_at,
+          post_id: l.post_id,
+          user_id: l.user_id,
+          exercise_name: exerciseByPost.get(l.post_id) ?? 'your post',
+          liker: profileById.get(l.user_id) ?? null,
+        }))
+      )
+    } catch (err) {
+      console.error('[FeedPage] fetchInbox:', err)
+      setInboxLikes([])
+    } finally {
+      setInboxLoading(false)
+    }
+  }, [user])
 
   const runSearch = useCallback(async (q: string) => {
     if (!user || !q.trim()) { setSearchResults([]); return }
@@ -112,6 +197,10 @@ export default function FeedPage() {
     const t = setTimeout(() => runSearch(search), 300)
     return () => clearTimeout(t)
   }, [search, runSearch])
+
+  useEffect(() => {
+    fetchInbox()
+  }, [fetchInbox, friendPosts])
 
   const loading = authLoading || postsLoading
 
@@ -212,6 +301,71 @@ export default function FeedPage() {
         </div>
       ) : (
         <div className="px-4 space-y-3">
+          {/* Inbox */}
+          <div
+            className="rounded-xl overflow-hidden"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+          >
+            <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: '1px solid var(--border)' }}>
+              <Inbox size={14} style={{ color: 'var(--accent)' }} />
+              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Inbox</p>
+            </div>
+
+            <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+              <p className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>
+                Likes on your posts
+              </p>
+
+              {inboxLoading ? (
+                <div className="h-4 w-28 rounded animate-pulse" style={{ background: 'var(--border)' }} />
+              ) : inboxLikes.length === 0 ? (
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  No likes yet
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {inboxLikes.slice(0, 4).map((item) => {
+                    const likerName = item.liker?.display_name ?? item.liker?.username ?? 'Someone'
+                    return (
+                      <div key={item.id} className="flex items-center gap-2.5">
+                        <Heart size={12} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                          <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{likerName}</span> liked your {item.exercise_name} post
+                        </p>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>
+                New posts from friends
+              </p>
+
+              {friendPosts.length === 0 ? (
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  No new friend posts
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {friendPosts.slice(0, 4).map((post) => {
+                    const name = post.profiles?.display_name ?? post.profiles?.username ?? 'Someone'
+                    return (
+                      <div key={`inbox-post-${post.id}`} className="flex items-center gap-2.5">
+                        <UserAvatar avatarUrl={post.profiles?.avatar_url ?? null} displayName={name} size={20} />
+                        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                          <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{name}</span> posted {post.exercise_name}
+                        </p>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* If falling back to own posts, show an explanation banner */}
           {!hasFriendPosts && (
             <div

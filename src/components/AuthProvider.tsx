@@ -10,6 +10,7 @@ interface AuthState {
   profile: Profile | null
   loading: boolean
   signOut: () => Promise<void>
+  refreshProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthState>({
@@ -17,6 +18,7 @@ const AuthContext = createContext<AuthState>({
   profile: null,
   loading: true,
   signOut: async () => {},
+  refreshProfile: async () => {},
 })
 
 async function fetchProfile(userId: string): Promise<Profile | null> {
@@ -44,21 +46,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const sb = createClient()
-
-    // onAuthStateChange fires immediately with the cached session —
-    // no network request needed for the initial INITIAL_SESSION event.
     const { data: { subscription } } = sb.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null)
       setLoading(false)
-
       if (session?.user) {
-        // Fetch profile in the background after auth is resolved
         fetchProfile(session.user.id).then(setProfile)
       } else {
         setProfile(null)
       }
     })
-
     return () => subscription.unsubscribe()
   }, [])
 
@@ -67,8 +63,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.location.href = '/login'
   }
 
+  const refreshProfile = async () => {
+    if (!user) return
+    const updated = await fetchProfile(user.id)
+    setProfile(updated)
+  }
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   )

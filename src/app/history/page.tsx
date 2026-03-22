@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import { WorkoutWithSets } from '@/lib/types'
 import { getExerciseDisplayType } from '@/lib/utils'
 import WorkoutCard from '@/components/WorkoutCard'
+import UsernameModal from '@/components/UsernameModal'
 
 type Period = 'today' | 'week' | 'month' | 'year'
 
@@ -25,18 +26,16 @@ function periodStart(period: Period): Date {
   if (period === 'week') {
     const d = new Date(now)
     const day = d.getDay()
-    const diff = day === 0 ? 6 : day - 1 // Monday start
-    d.setDate(d.getDate() - diff)
+    d.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
     d.setHours(0, 0, 0, 0)
     return d
   }
   if (period === 'month') return new Date(now.getFullYear(), now.getMonth(), 1)
-  return new Date(now.getFullYear(), 0, 1) // year
+  return new Date(now.getFullYear(), 0, 1)
 }
 
 function weeksInPeriod(period: Period): number {
-  if (period === 'today') return 1
-  if (period === 'week') return 1
+  if (period === 'today' || period === 'week') return 1
   if (period === 'month') return new Date().getDate() / 7
   const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000)
   return dayOfYear / 7
@@ -58,8 +57,7 @@ function groupByDate(workouts: WorkoutWithSets[]): { label: string; workouts: Wo
     .sort(([a], [b]) => b.localeCompare(a))
     .map(([iso, ws]) => {
       const d = new Date(iso)
-      const now = new Date()
-      const diff = Math.floor((now.getTime() - d.getTime()) / 86400000)
+      const diff = Math.floor((Date.now() - d.getTime()) / 86400000)
       let label: string
       if (diff === 0) label = 'Today'
       else if (diff === 1) label = 'Yesterday'
@@ -73,36 +71,23 @@ function computeStats(workouts: WorkoutWithSets[], period: Period) {
   const totalVolume = workouts.reduce((sum, w) =>
     sum + w.workout_sets.reduce((s, set) =>
       getExerciseDisplayType(set.exercise_name) === 'normal'
-        ? s + set.sets * set.reps * Number(set.weight_kg)
-        : s, 0), 0)
+        ? s + set.sets * set.reps * Number(set.weight_kg) : s, 0), 0)
   const totalSets = workouts.reduce((sum, w) => sum + w.workout_sets.length, 0)
-
-  const weeks = weeksInPeriod(period)
-  const avgPerWeek = weeks > 0 ? totalWorkouts / weeks : 0
-
+  const avgPerWeek = weeksInPeriod(period) > 0 ? totalWorkouts / weeksInPeriod(period) : 0
   const exerciseCounts = new Map<string, number>()
-  workouts.forEach((w) => w.workout_sets.forEach((s) => {
+  workouts.forEach((w) => w.workout_sets.forEach((s) =>
     exerciseCounts.set(s.exercise_name, (exerciseCounts.get(s.exercise_name) ?? 0) + 1)
-  }))
+  ))
   const topExercise = [...exerciseCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
-
-  const muscleCount = new Map<string, number>()
-  workouts.forEach((w) => {
-    const seen = new Set<string>()
-    w.workout_sets.forEach((s) => {
-      if (!seen.has(s.exercise_name)) {
-        seen.add(s.exercise_name)
-      }
-    })
-  })
-
   return { totalWorkouts, totalVolume, totalSets, avgPerWeek, topExercise }
 }
 
 export default function HistoryPage() {
-  const { user, loading: authLoading } = useAuth()
+  const { user, profile, refreshProfile, loading: authLoading } = useAuth()
   const { workouts, loading: workoutsLoading, error, refetch } = useWorkouts(user?.id ?? null)
   const [period, setPeriod] = useState<Period>('week')
+  const [showUsernameModal, setShowUsernameModal] = useState(false)
+  const [pendingShare, setPendingShare] = useState<{ name: string; weight: number; reps: number } | null>(null)
 
   const loading = authLoading || workoutsLoading
 
@@ -114,17 +99,39 @@ export default function HistoryPage() {
   const stats = useMemo(() => computeStats(filtered, period), [filtered, period])
   const groups = useMemo(() => groupByDate(filtered), [filtered])
 
-  const handleShareExercise = async (exerciseName: string, bestWeight: number, bestReps: number) => {
+  const doShare = async (name: string, weight: number, reps: number) => {
     if (!user) return
     const { error } = await createClient().from('posts').insert({
       user_id: user.id,
       type: 'lift',
-      exercise_name: exerciseName,
-      weight_kg: bestWeight,
-      reps: bestReps,
+      exercise_name: name,
+      weight_kg: weight,
+      reps,
     })
     if (error) console.error('[HistoryPage] share lift:', error.message)
   }
+
+  const handleShareExercise = (name: string, weight: number, reps: number) => {
+    if (!profile?.username) {
+      setPendingShare({ name, weight, reps })
+      setShowUsernameModal(true)
+      return
+    }
+    doShare(name, weight, reps)
+  }
+
+  const handleDelete = async (workoutId: string) => {
+    if (!user) return
+    const { error } = await createClient()
+      .from('workouts')
+      .delete()
+      .eq('id', workoutId)
+      .eq('user_id', user.id)
+    if (error) console.error('[HistoryPage] delete workout:', error.message)
+    else refetch()
+  }
+
+  const uniqueExercisesCount = new Set(filtered.flatMap((w) => w.workout_sets.map((s) => s.exercise_name))).size
 
   const statCards = [
     { label: 'Workouts', value: stats.totalWorkouts > 0 ? String(stats.totalWorkouts) : '—' },
@@ -133,7 +140,7 @@ export default function HistoryPage() {
     {
       label: period === 'today' ? 'Exercises' : 'Avg / week',
       value: period === 'today'
-        ? (stats.totalSets > 0 ? String(new Set(filtered.flatMap(w => w.workout_sets.map(s => s.exercise_name))).size) : '—')
+        ? (uniqueExercisesCount > 0 ? String(uniqueExercisesCount) : '—')
         : (stats.totalWorkouts > 0 ? stats.avgPerWeek.toFixed(1) : '—'),
     },
   ]
@@ -154,12 +161,9 @@ export default function HistoryPage() {
         </Link>
       </div>
 
-      {/* Period filter tabs */}
+      {/* Period tabs */}
       <div className="px-4 mb-5">
-        <div
-          className="flex rounded-xl p-1 gap-1"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-        >
+        <div className="flex rounded-xl p-1 gap-1" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           {PERIODS.map(({ key, label }) => (
             <button
               key={key}
@@ -183,8 +187,9 @@ export default function HistoryPage() {
               <div key={i} className="h-16 rounded-xl animate-pulse" style={{ background: 'var(--surface)' }} />
             ))}
           </div>
-          <div className="h-16 rounded-xl animate-pulse" style={{ background: 'var(--surface)' }} />
-          <div className="h-16 rounded-xl animate-pulse" style={{ background: 'var(--surface)' }} />
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-16 rounded-xl animate-pulse" style={{ background: 'var(--surface)' }} />
+          ))}
         </div>
       ) : error ? (
         <div className="flex flex-col items-center gap-3 pt-16 text-center px-4">
@@ -195,33 +200,20 @@ export default function HistoryPage() {
         </div>
       ) : (
         <>
-          {/* Stats grid */}
           {workouts.length > 0 && (
             <div className="px-4 mb-5">
               <div className="grid grid-cols-2 gap-3 mb-3">
                 {statCards.map((s) => (
-                  <div
-                    key={s.label}
-                    className="p-4 rounded-xl"
-                    style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-                  >
-                    <p
-                      className="text-2xl font-bold"
-                      style={{ color: s.value !== '—' ? 'var(--text-primary)' : 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}
-                    >
+                  <div key={s.label} className="p-4 rounded-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                    <p className="text-2xl font-bold" style={{ color: s.value !== '—' ? 'var(--text-primary)' : 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
                       {s.value}
                     </p>
                     <p className="text-xs font-medium mt-1" style={{ color: 'var(--text-muted)' }}>{s.label}</p>
                   </div>
                 ))}
               </div>
-
-              {/* Top exercise banner */}
               {stats.topExercise && filtered.length > 0 && (
-                <div
-                  className="px-4 py-2.5 rounded-xl flex items-center justify-between"
-                  style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-                >
+                <div className="px-4 py-2.5 rounded-xl flex items-center justify-between" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                   <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Most trained</p>
                   <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{stats.topExercise}</p>
                 </div>
@@ -229,7 +221,6 @@ export default function HistoryPage() {
             </div>
           )}
 
-          {/* Workout list */}
           {filtered.length === 0 ? (
             <div className="px-4 pt-12 flex flex-col items-center gap-3 text-center">
               <p className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
@@ -256,6 +247,7 @@ export default function HistoryPage() {
                         workout={w}
                         isLast={i === group.length - 1}
                         onShareExercise={handleShareExercise}
+                        onDelete={() => handleDelete(w.id)}
                       />
                     ))}
                   </div>
@@ -264,6 +256,21 @@ export default function HistoryPage() {
             </div>
           )}
         </>
+      )}
+
+      {showUsernameModal && user && (
+        <UsernameModal
+          userId={user.id}
+          onSaved={async () => {
+            await refreshProfile()
+            setShowUsernameModal(false)
+            if (pendingShare) {
+              doShare(pendingShare.name, pendingShare.weight, pendingShare.reps)
+              setPendingShare(null)
+            }
+          }}
+          onClose={() => { setShowUsernameModal(false); setPendingShare(null) }}
+        />
       )}
     </main>
   )

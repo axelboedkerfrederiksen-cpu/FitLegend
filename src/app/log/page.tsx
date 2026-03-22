@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Exercise } from '@/lib/types'
 import ExercisePicker from '@/components/ExercisePicker'
 import SetInput, { ExerciseSets, defaultRow } from '@/components/SetInput'
+import UsernameModal from '@/components/UsernameModal'
 import { getExerciseDisplayType, ExerciseDisplayType } from '@/lib/utils'
 
 type Step = 'pick' | 'sets' | 'finish' | 'share' | 'success'
@@ -26,11 +27,25 @@ const STEP_LABELS: Record<Exclude<Step, 'success' | 'share'>, string> = {
 
 // ── PR share screen ──────────────────────────────────────────────────────────
 
-function PRShareCard({ pr, userId }: { pr: NewPR; userId: string }) {
+function PRShareCard({
+  pr,
+  userId,
+  username,
+  onNeedUsername,
+}: {
+  pr: NewPR
+  userId: string
+  username: string | null | undefined
+  onNeedUsername: (onDone: () => void) => void
+}) {
   const [posted, setPosted] = useState(false)
   const [posting, setPosting] = useState(false)
 
   const post = async () => {
+    if (!username) {
+      onNeedUsername(() => post())
+      return
+    }
     setPosting(true)
     try {
       const { error } = await createClient().from('posts').insert({
@@ -81,7 +96,26 @@ function PRShareCard({ pr, userId }: { pr: NewPR; userId: string }) {
   )
 }
 
-function PRShareScreen({ prs, userId, onDone }: { prs: NewPR[]; userId: string; onDone: () => void }) {
+function PRShareScreen({
+  prs,
+  userId,
+  username,
+  onDone,
+}: {
+  prs: NewPR[]
+  userId: string
+  username: string | null | undefined
+  onDone: () => void
+}) {
+  const [showUsernameModal, setShowUsernameModal] = useState(false)
+  const [pendingCallback, setPendingCallback] = useState<(() => void) | null>(null)
+  const [currentUsername, setCurrentUsername] = useState(username)
+
+  const handleNeedUsername = (onDone: () => void) => {
+    setPendingCallback(() => onDone)
+    setShowUsernameModal(true)
+  }
+
   return (
     <main
       className="min-h-screen flex flex-col px-4 pb-10"
@@ -99,7 +133,13 @@ function PRShareScreen({ prs, userId, onDone }: { prs: NewPR[]; userId: string; 
 
       <div className="space-y-3 mb-6">
         {prs.map((pr) => (
-          <PRShareCard key={pr.exercise_name} pr={pr} userId={userId} />
+          <PRShareCard
+            key={pr.exercise_name}
+            pr={pr}
+            userId={userId}
+            username={currentUsername}
+            onNeedUsername={handleNeedUsername}
+          />
         ))}
       </div>
 
@@ -114,6 +154,28 @@ function PRShareScreen({ prs, userId, onDone }: { prs: NewPR[]; userId: string; 
       >
         Done
       </button>
+
+      {showUsernameModal && (
+        <UsernameModal
+          userId={userId}
+          onSaved={async () => {
+            // Re-fetch username from profiles
+            const { data } = await createClient()
+              .from('profiles')
+              .select('username')
+              .eq('id', userId)
+              .single()
+            const saved = data?.username ?? null
+            setCurrentUsername(saved)
+            setShowUsernameModal(false)
+            if (pendingCallback) {
+              pendingCallback()
+              setPendingCallback(null)
+            }
+          }}
+          onClose={() => { setShowUsernameModal(false); setPendingCallback(null) }}
+        />
+      )}
     </main>
   )
 }
@@ -121,7 +183,7 @@ function PRShareScreen({ prs, userId, onDone }: { prs: NewPR[]; userId: string; 
 const STEPS: Exclude<Step, 'success'>[] = ['pick', 'sets', 'finish']
 
 export default function LogPage() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const router = useRouter()
   const supabase = createClient()
 
@@ -247,7 +309,7 @@ export default function LogPage() {
   }
 
   if (step === 'share') {
-    return <PRShareScreen prs={newPRs} userId={user!.id} onDone={() => { setStep('success'); setTimeout(() => router.push('/history'), 1200) }} />
+    return <PRShareScreen prs={newPRs} userId={user!.id} username={profile?.username ?? null} onDone={() => { setStep('success'); setTimeout(() => router.push('/history'), 1200) }} />
   }
 
   if (step === 'success') {

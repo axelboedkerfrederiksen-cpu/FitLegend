@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronRight, Share2 } from 'lucide-react'
+import { ChevronRight, Share2, Trash2 } from 'lucide-react'
 import { WorkoutWithSets, WorkoutSet } from '@/lib/types'
 import { getExerciseDisplayType } from '@/lib/utils'
 
@@ -9,6 +9,7 @@ interface Props {
   workout: WorkoutWithSets
   isLast?: boolean
   onShareExercise?: (exerciseName: string, bestWeight: number, bestReps: number) => void
+  onDelete?: () => void
 }
 
 function formatDate(iso: string) {
@@ -48,9 +49,10 @@ function bestSet(sets: WorkoutSet[]): WorkoutSet {
   return sets.reduce((best, s) => (Number(s.weight_kg) > Number(best.weight_kg) ? s : best), sets[0])
 }
 
-export default function WorkoutCard({ workout, isLast = false, onShareExercise }: Props) {
+export default function WorkoutCard({ workout, isLast = false, onShareExercise, onDelete }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [shared, setShared] = useState<Set<string>>(new Set())
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const exercises = uniqueExercises(workout)
   const volume = totalVolume(workout)
 
@@ -166,8 +168,41 @@ export default function WorkoutCard({ workout, isLast = false, onShareExercise }
           })}
 
           {workout.notes && (
-            <div className="px-4 py-3">
+            <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
               <p className="text-xs italic" style={{ color: 'var(--text-muted)' }}>{workout.notes}</p>
+            </div>
+          )}
+
+          {onDelete && (
+            <div className="px-4 py-3 flex justify-end">
+              {confirmDelete ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Delete this workout?</span>
+                  <button
+                    onClick={() => setConfirmDelete(false)}
+                    className="px-2.5 py-1 rounded-md text-xs font-medium"
+                    style={{ background: 'var(--border)', color: 'var(--text-secondary)' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={onDelete}
+                    className="px-2.5 py-1 rounded-md text-xs font-semibold"
+                    style={{ background: 'var(--danger)', color: '#fff' }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium"
+                  style={{ color: 'var(--danger)' }}
+                >
+                  <Trash2 size={12} />
+                  Delete workout
+                </button>
+              )}
             </div>
           )}
         </div>

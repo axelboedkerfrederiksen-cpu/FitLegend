@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 import { Profile } from '@/lib/types'
@@ -41,60 +41,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
-  const resolved = useRef(false)
-
-  const resolve = () => {
-    resolved.current = true
-    setLoading(false)
-  }
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (!resolved.current) {
-        console.warn('[AuthProvider] 5s timeout — forcing loading=false')
-        resolve()
-      }
-    }, 5000)
-
     const sb = createClient()
 
-    const getUser = async () => {
-      try {
-        const { data: { user }, error } = await sb.auth.getUser()
-        if (error) console.error('[AuthProvider] getUser error:', error.message)
-        setUser(user ?? null)
-        if (user) {
-          setProfile(await fetchProfile(user.id))
-        }
-      } catch (err) {
-        console.error('[AuthProvider] getUser threw:', err)
-      } finally {
-        resolve()
-      }
-    }
-
-    getUser()
-
+    // onAuthStateChange fires immediately with the cached session —
+    // no network request needed for the initial INITIAL_SESSION event.
     const { data: { subscription } } = sb.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null)
-      try {
-        if (session?.user) {
-          setProfile(await fetchProfile(session.user.id))
-        } else {
-          setProfile(null)
-        }
-      } catch (err) {
-        console.error('[AuthProvider] onAuthStateChange threw:', err)
+      setLoading(false)
+
+      if (session?.user) {
+        // Fetch profile in the background after auth is resolved
+        fetchProfile(session.user.id).then(setProfile)
+      } else {
         setProfile(null)
-      } finally {
-        resolve()
       }
     })
 
-    return () => {
-      clearTimeout(timeout)
-      subscription.unsubscribe()
-    }
+    return () => subscription.unsubscribe()
   }, [])
 
   const signOut = async () => {

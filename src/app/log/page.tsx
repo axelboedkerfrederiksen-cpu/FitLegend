@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Exercise } from '@/lib/types'
 import ExercisePicker from '@/components/ExercisePicker'
 import SetInput, { ExerciseSets, defaultRow } from '@/components/SetInput'
-import { getExerciseDisplayType } from '@/lib/utils'
+import { getExerciseDisplayType, ExerciseDisplayType } from '@/lib/utils'
 
 type Step = 'pick' | 'sets' | 'finish' | 'success'
 
@@ -84,6 +84,46 @@ export default function LogPage() {
         if (setsError) {
           console.error('[LogPage] sets insert:', setsError.message, setsError.code)
           // Workout row exists — don't block, still proceed to success
+        }
+      }
+
+      // Auto-detect PRs: for each strength exercise, upsert if new max weight
+      const prUpserts = exerciseSets
+        .filter((es) => {
+          const type: ExerciseDisplayType = getExerciseDisplayType(es.exercise.name, es.exercise.muscle_group)
+          return type === 'normal'
+        })
+        .flatMap((es) => {
+          const best = es.sets.reduce(
+            (max, s) => (s.weight_kg > max.weight_kg ? s : max),
+            es.sets[0]
+          )
+          if (!best || best.weight_kg <= 0) return []
+          return [{
+            user_id: user.id,
+            exercise_name: es.exercise.name,
+            weight_kg: best.weight_kg,
+            reps: best.reps,
+            achieved_at: new Date().toISOString(),
+          }]
+        })
+
+      if (prUpserts.length > 0) {
+        // Only update if the new weight is strictly greater than existing
+        for (const pr of prUpserts) {
+          const { data: existing } = await supabase
+            .from('personal_records')
+            .select('weight_kg')
+            .eq('user_id', pr.user_id)
+            .eq('exercise_name', pr.exercise_name)
+            .maybeSingle()
+
+          if (!existing || Number(pr.weight_kg) > Number(existing.weight_kg)) {
+            const { error: prError } = await supabase
+              .from('personal_records')
+              .upsert(pr, { onConflict: 'user_id,exercise_name' })
+            if (prError) console.error('[LogPage] PR upsert:', prError.message)
+          }
         }
       }
 

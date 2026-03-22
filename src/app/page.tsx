@@ -45,7 +45,26 @@ export default function DashboardPage() {
   const firstName = displayName.split(' ')[0]
 
   const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const greeting =
+    hour < 6 ? 'Good night' :
+    hour < 12 ? 'Good morning' :
+    hour < 17 ? 'Good afternoon' :
+    hour < 21 ? 'Good evening' :
+    'Good night'
+
+  const motivationalMessages = [
+    `Ready for the gym today, ${firstName}? 💪`,
+    `Let's get after it, ${firstName}! 🔥`,
+    `Time to make gains, ${firstName} 🏋️`,
+    `You showed up. That's already a win, ${firstName} ⚡`,
+    `No days off, ${firstName} 💥`,
+    `Champions are made in the gym, ${firstName} 🏆`,
+    `Another day, another PR, ${firstName}? 📈`,
+    `Your future self will thank you, ${firstName} 🙌`,
+    `Stay consistent, ${firstName}. It adds up 🧱`,
+    `Beast mode on, ${firstName} 🐉`,
+  ]
+  const motivationalMessage = motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)]
 
   const statCards = [
     {
@@ -73,9 +92,9 @@ export default function DashboardPage() {
       <div className="px-4 pt-12 pb-6 flex items-center justify-between">
         <div>
           <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>{greeting}</p>
-          <h1 className="text-2xl font-bold mt-0.5" style={{ color: 'var(--text-primary)' }}>
-            Hey, {firstName}
-          </h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-primary)' }}>
+            {motivationalMessage}
+          </p>
         </div>
         <Link href="/settings">
           <UserAvatar

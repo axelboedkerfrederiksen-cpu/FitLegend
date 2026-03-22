@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Search, X, Users } from 'lucide-react'
+import Link from 'next/link'
 import { useAuth } from '@/components/AuthProvider'
 import { useFeedPosts } from '@/hooks/usePosts'
 import { createClient } from '@/lib/supabase/client'
@@ -67,7 +68,7 @@ function SearchResult({
 
 export default function FeedPage() {
   const { user, loading: authLoading } = useAuth()
-  const { posts, loading: postsLoading, refetch } = useFeedPosts(user?.id ?? null)
+  const { friendPosts, ownPosts, loading: postsLoading, refetch } = useFeedPosts(user?.id ?? null)
 
   const [search, setSearch] = useState('')
   const [searchResults, setSearchResults] = useState<(Profile & { is_following: boolean })[]>([])
@@ -113,6 +114,10 @@ export default function FeedPage() {
   }, [search, runSearch])
 
   const loading = authLoading || postsLoading
+
+  // Show friends' posts if they exist; otherwise fall back to own posts
+  const hasFriendPosts = friendPosts.length > 0
+  const displayPosts = hasFriendPosts ? friendPosts : ownPosts
 
   return (
     <main className="min-h-screen pb-20" style={{ background: 'var(--bg)' }}>
@@ -180,14 +185,15 @@ export default function FeedPage() {
         </div>
       )}
 
-      {/* Posts feed */}
+      {/* Posts */}
       {loading ? (
         <div className="px-4 space-y-3">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="h-36 rounded-xl animate-pulse" style={{ background: 'var(--surface)' }} />
           ))}
         </div>
-      ) : posts.length === 0 ? (
+      ) : displayPosts.length === 0 ? (
+        /* Totally empty — no friends posting AND no own posts */
         <div className="flex flex-col items-center gap-3 pt-20 text-center px-4">
           <Users size={36} style={{ color: 'var(--text-muted)' }} />
           <p className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
@@ -206,9 +212,45 @@ export default function FeedPage() {
         </div>
       ) : (
         <div className="px-4 space-y-3">
-          {posts.map((post) => (
+          {/* If falling back to own posts, show an explanation banner */}
+          {!hasFriendPosts && (
+            <div
+              className="px-4 py-3 rounded-xl flex items-center justify-between gap-3"
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+            >
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                Showing your posts — follow people to see theirs
+              </p>
+              <button
+                onClick={() => setShowSearch(true)}
+                className="text-xs font-semibold flex-shrink-0"
+                style={{ color: 'var(--accent)' }}
+              >
+                Find people
+              </button>
+            </div>
+          )}
+
+          {displayPosts.map((post) => (
             <PostCard key={post.id} post={post} />
           ))}
+
+          {/* When showing friends' posts, show a link to own profile */}
+          {hasFriendPosts && user && (
+            <Link href={`/profile/${user.id}`}>
+              <div
+                className="px-4 py-3 rounded-xl flex items-center justify-between"
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+              >
+                <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                  View your own posts
+                </p>
+                <span className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>
+                  Go to profile →
+                </span>
+              </div>
+            </Link>
+          )}
         </div>
       )}
     </main>

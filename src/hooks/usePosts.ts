@@ -6,7 +6,8 @@ import { withTimeout } from '@/lib/utils'
 import { FeedPost } from '@/lib/types'
 
 export function useFeedPosts(userId: string | null) {
-  const [posts, setPosts] = useState<FeedPost[]>([])
+  const [friendPosts, setFriendPosts] = useState<FeedPost[]>([])
+  const [ownPosts, setOwnPosts] = useState<FeedPost[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
@@ -22,22 +23,35 @@ export function useFeedPosts(userId: string | null) {
       )
       if (followsError) console.error('[useFeedPosts] follows:', followsError.message)
 
-      // Always include own posts plus followed users' posts
-      const followingIds = [
-        userId,
-        ...(follows ?? []).map((f: { following_id: string }) => f.following_id),
-      ]
+      const followingIds = (follows ?? []).map((f: { following_id: string }) => f.following_id)
 
-      const { data, error } = await withTimeout(
-        supabase
-          .from('posts')
-          .select('*, profiles(*)')
-          .in('user_id', followingIds)
-          .order('created_at', { ascending: false })
-          .limit(50)
-      )
-      if (error) console.error('[useFeedPosts] posts:', error.message)
-      setPosts((data as FeedPost[]) ?? [])
+      const [friendRes, ownRes] = await Promise.allSettled([
+        followingIds.length > 0
+          ? withTimeout(
+              supabase
+                .from('posts')
+                .select('*, profiles(*)')
+                .in('user_id', followingIds)
+                .order('created_at', { ascending: false })
+                .limit(50)
+            )
+          : Promise.resolve({ data: [], error: null }),
+        withTimeout(
+          supabase
+            .from('posts')
+            .select('*, profiles(*)')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(20)
+        ),
+      ])
+
+      if (friendRes.status === 'fulfilled' && !friendRes.value.error) {
+        setFriendPosts((friendRes.value.data as FeedPost[]) ?? [])
+      }
+      if (ownRes.status === 'fulfilled' && !ownRes.value.error) {
+        setOwnPosts((ownRes.value.data as FeedPost[]) ?? [])
+      }
     } catch (err) {
       console.error('[useFeedPosts] threw:', err)
     } finally {
@@ -49,5 +63,5 @@ export function useFeedPosts(userId: string | null) {
     fetchPosts()
   }, [fetchPosts])
 
-  return { posts, loading, refetch: fetchPosts }
+  return { friendPosts, ownPosts, loading, refetch: fetchPosts }
 }

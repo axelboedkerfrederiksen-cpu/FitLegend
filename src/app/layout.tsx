@@ -30,8 +30,8 @@ export const metadata: Metadata = {
   description: 'Track lifts. Build streaks. Become legendary.',
   manifest: '/manifest.json',
   icons: {
-    icon: '/logo.svg',
-    apple: '/logo.svg',
+    icon: '/logo.png',
+    apple: '/logo.png',
   },
   openGraph: {
     title: 'FitLegend',

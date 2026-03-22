@@ -7,9 +7,9 @@ import Link from 'next/link'
 import { useAuth } from '@/components/AuthProvider'
 import { createClient } from '@/lib/supabase/client'
 import { withTimeout } from '@/lib/utils'
-import { Profile, WorkoutWithSets } from '@/lib/types'
+import { Profile, FeedPost } from '@/lib/types'
 import UserAvatar from '@/components/UserAvatar'
-import WorkoutCard from '@/components/WorkoutCard'
+import PostCard from '@/components/PostCard'
 import ShareLiftModal from '@/components/ShareLiftModal'
 
 interface ProfileStats {
@@ -26,7 +26,7 @@ export default function ProfilePage() {
 
   const [profile, setProfile] = useState<Profile | null>(null)
   const [stats, setStats] = useState<ProfileStats>({ workoutCount: 0, followerCount: 0, followingCount: 0 })
-  const [workouts, setWorkouts] = useState<WorkoutWithSets[]>([])
+  const [posts, setPosts] = useState<FeedPost[]>([])
   const [isFollowing, setIsFollowing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [followLoading, setFollowLoading] = useState(false)
@@ -43,18 +43,18 @@ export default function ProfilePage() {
     setLoading(true)
     try {
       const sb = createClient()
-      const [profileRes, workoutCountRes, followerRes, followingRes, recentRes, followCheckRes] =
+      const [profileRes, workoutCountRes, followerRes, followingRes, postsRes, followCheckRes] =
         await Promise.allSettled([
           withTimeout(sb.from('profiles').select('*').eq('id', id).single()),
           withTimeout(sb.from('workouts').select('id', { count: 'exact', head: true }).eq('user_id', id)),
           withTimeout(sb.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', id)),
           withTimeout(sb.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', id)),
           withTimeout(
-            sb.from('workouts')
-              .select('*, workout_sets(*)')
+            sb.from('posts')
+              .select('*, profiles(*)')
               .eq('user_id', id)
               .order('created_at', { ascending: false })
-              .limit(10)
+              .limit(50)
           ),
           user && !isOwn
             ? withTimeout(
@@ -75,8 +75,8 @@ export default function ProfilePage() {
         followerCount: followerRes.status === 'fulfilled' ? (followerRes.value.count ?? 0) : 0,
         followingCount: followingRes.status === 'fulfilled' ? (followingRes.value.count ?? 0) : 0,
       })
-      if (recentRes.status === 'fulfilled' && !recentRes.value.error) {
-        setWorkouts((recentRes.value.data as WorkoutWithSets[]) ?? [])
+      if (postsRes.status === 'fulfilled' && !postsRes.value.error) {
+        setPosts((postsRes.value.data as FeedPost[]) ?? [])
       }
       if (followCheckRes.status === 'fulfilled') {
         setIsFollowing(!!(followCheckRes.value as { data: unknown }).data)
@@ -241,19 +241,19 @@ export default function ProfilePage() {
         )}
       </div>
 
-      {/* Workouts */}
+      {/* Posts */}
       <div className="px-4">
         <p className="text-xs font-semibold mb-3" style={{ color: 'var(--text-muted)' }}>
-          {isOwn ? 'Your workouts' : 'Workouts'}
+          {isOwn ? 'Your posts' : 'Posts'}
         </p>
-        {workouts.length === 0 ? (
+        {posts.length === 0 ? (
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-            {isOwn ? 'No workouts logged yet.' : 'No workouts yet.'}
+            {isOwn ? 'No posts yet. Share a lift from the Progress tab or History.' : 'No posts yet.'}
           </p>
         ) : (
-          <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-            {workouts.map((w, i) => (
-              <WorkoutCard key={w.id} workout={w} isLast={i === workouts.length - 1} />
+          <div className="space-y-3">
+            {posts.map((post) => (
+              <PostCard key={post.id} post={post} />
             ))}
           </div>
         )}

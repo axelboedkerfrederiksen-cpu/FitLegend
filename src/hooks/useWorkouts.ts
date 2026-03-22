@@ -55,26 +55,28 @@ export function useFeedWorkouts(userId: string | null) {
     }
     setLoading(true)
     try {
-      const { data: follows, error: followsError } = await supabase
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', userId)
+      const { data: follows, error: followsError } = await withTimeout(
+        supabase.from('follows').select('following_id').eq('follower_id', userId)
+      )
 
       if (followsError) console.error('[useFeedWorkouts] follows:', followsError.message)
 
       if (!follows || follows.length === 0) {
         setFeed([])
+        setLoading(false)
         return
       }
 
-      const followingIds = follows.map((f) => f.following_id)
+      const followingIds = follows.map((f: { following_id: string }) => f.following_id)
 
-      const { data, error } = await supabase
-        .from('workouts')
-        .select('*, workout_sets(*), profiles(*)')
-        .in('user_id', followingIds)
-        .order('created_at', { ascending: false })
-        .limit(50)
+      const { data, error } = await withTimeout(
+        supabase
+          .from('workouts')
+          .select('*, workout_sets(*), profiles(*)')
+          .in('user_id', followingIds)
+          .order('created_at', { ascending: false })
+          .limit(50)
+      )
 
       if (error) console.error('[useFeedWorkouts] feed:', error.message)
       setFeed((data as FeedWorkout[]) ?? [])

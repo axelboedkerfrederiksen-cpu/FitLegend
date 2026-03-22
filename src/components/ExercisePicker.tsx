@@ -304,10 +304,13 @@ export default function ExercisePicker({ selected, onSelectionChange, onNext, us
                   const sel = isSelected(ex)
                   const isFav = favorites.has(ex.name)
                   return (
-                    <button
+                    <div
                       key={ex.name}
                       onClick={() => toggle(ex)}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => e.key === 'Enter' && toggle(ex)}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors cursor-pointer"
                       style={{
                         background: sel ? 'var(--accent-dim)' : 'var(--surface)',
                         borderBottom: i < displayList.length - 1 ? '1px solid var(--border)' : 'none',
@@ -348,7 +351,7 @@ export default function ExercisePicker({ selected, onSelectionChange, onNext, us
                           />
                         </button>
                       )}
-                    </button>
+                    </div>
                   )
                 })}
               </div>

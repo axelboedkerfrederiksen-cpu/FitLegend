@@ -6,7 +6,7 @@ export async function GET(request: Request) {
   const code = searchParams.get('code')
   const oauthError = searchParams.get('error')
   const oauthErrorDescription = searchParams.get('error_description')
-  const next = searchParams.get('next') ?? '/'
+  const next = searchParams.get('next') ?? '/home'
 
   if (oauthError) {
     console.error('[auth/callback] OAuth error from Supabase:')
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/login?error=auth_callback_failed`)
   }
 
-  const response = NextResponse.redirect(`${origin}${next}`)
+  const response = NextResponse.next()
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -57,5 +57,9 @@ export async function GET(request: Request) {
   }
 
   console.log('[auth/callback] Session exchanged for:', data.user?.email)
-  return response
+  const redirectResponse = NextResponse.redirect(`${origin}${next}`)
+  response.cookies.getAll().forEach((cookie) => {
+    redirectResponse.cookies.set(cookie)
+  })
+  return redirectResponse
 }

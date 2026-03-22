@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Trophy } from 'lucide-react'
+import { Trophy, Dumbbell } from 'lucide-react'
 import { FeedPost } from '@/lib/types'
 import UserAvatar from '@/components/UserAvatar'
 
@@ -19,6 +19,7 @@ function timeAgo(iso: string) {
 export default function PostCard({ post }: { post: FeedPost }) {
   const profile = post.profiles
   const displayName = profile?.display_name ?? profile?.username ?? 'Unknown'
+  const isPR = post.type === 'pr'
 
   return (
     <div
@@ -43,22 +44,29 @@ export default function PostCard({ post }: { post: FeedPost }) {
         </div>
       </Link>
 
-      {/* PR content */}
+      {/* Content */}
       <div className="px-4 py-4">
+        {/* Badge */}
         <div
           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full mb-3"
-          style={{ background: 'var(--accent-dim)' }}
+          style={{ background: isPR ? 'var(--accent-dim)' : 'rgba(139,92,246,0.12)' }}
         >
-          <Trophy size={12} style={{ color: 'var(--accent)' }} />
-          <span className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>
-            New Personal Record
+          {isPR
+            ? <Trophy size={12} style={{ color: 'var(--accent)' }} />
+            : <Dumbbell size={12} style={{ color: '#8b5cf6' }} />
+          }
+          <span
+            className="text-xs font-semibold"
+            style={{ color: isPR ? 'var(--accent)' : '#8b5cf6' }}
+          >
+            {isPR ? 'New Personal Record' : 'Sharing a lift'}
           </span>
         </div>
 
         <p className="text-xl font-bold mb-1" style={{ color: 'var(--text-primary)' }}>
           {post.exercise_name}
         </p>
-        <p className="text-3xl font-bold" style={{ color: 'var(--accent)', fontVariantNumeric: 'tabular-nums' }}>
+        <p className="text-3xl font-bold" style={{ color: isPR ? 'var(--accent)' : 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
           {post.weight_kg} <span className="text-lg font-semibold">kg</span>
           {post.reps > 0 && (
             <span className="text-base font-medium ml-2" style={{ color: 'var(--text-muted)' }}>

@@ -58,7 +58,7 @@ export interface FeedWorkout extends WorkoutWithSets {
 export interface Post {
   id: string
   user_id: string
-  type: 'pr'
+  type: 'pr' | 'lift'
   exercise_name: string
   weight_kg: number
   reps: number

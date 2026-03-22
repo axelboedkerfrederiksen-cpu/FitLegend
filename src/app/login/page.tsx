@@ -9,10 +9,9 @@ const FEATURES = ['Log every lift', 'Auto-detect PRs', 'Progress charts', 'Socia
 export default function LoginPage() {
   async function handleGoogleSignIn() {
     const supabase = createClient()
-    const origin = window.location.origin
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${origin}/auth/callback` },
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
     })
   }
 

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, CheckCircle2 } from 'lucide-react'
+import { ChevronLeft, CheckCircle2, Trophy } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider'
 import { createClient } from '@/lib/supabase/client'
 import { Exercise } from '@/lib/types'
@@ -10,12 +10,112 @@ import ExercisePicker from '@/components/ExercisePicker'
 import SetInput, { ExerciseSets, defaultRow } from '@/components/SetInput'
 import { getExerciseDisplayType, ExerciseDisplayType } from '@/lib/utils'
 
-type Step = 'pick' | 'sets' | 'finish' | 'success'
+type Step = 'pick' | 'sets' | 'finish' | 'share' | 'success'
 
-const STEP_LABELS: Record<Exclude<Step, 'success'>, string> = {
+interface NewPR {
+  exercise_name: string
+  weight_kg: number
+  reps: number
+}
+
+const STEP_LABELS: Record<Exclude<Step, 'success' | 'share'>, string> = {
   pick: 'Choose exercises',
   sets: 'Log sets',
   finish: 'Finish',
+}
+
+// ── PR share screen ──────────────────────────────────────────────────────────
+
+function PRShareCard({ pr, userId }: { pr: NewPR; userId: string }) {
+  const [posted, setPosted] = useState(false)
+  const [posting, setPosting] = useState(false)
+
+  const post = async () => {
+    setPosting(true)
+    try {
+      const { error } = await createClient().from('posts').insert({
+        user_id: userId,
+        type: 'pr',
+        exercise_name: pr.exercise_name,
+        weight_kg: pr.weight_kg,
+        reps: pr.reps,
+      })
+      if (error) console.error('[PRShareCard] post insert:', error.message)
+      else setPosted(true)
+    } finally {
+      setPosting(false)
+    }
+  }
+
+  return (
+    <div
+      className="p-4 rounded-xl flex items-center justify-between gap-3"
+      style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+    >
+      <div className="min-w-0">
+        <div className="flex items-center gap-1.5 mb-1">
+          <Trophy size={13} style={{ color: 'var(--accent)' }} />
+          <span className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>New PR</span>
+        </div>
+        <p className="text-base font-bold truncate" style={{ color: 'var(--text-primary)' }}>
+          {pr.exercise_name}
+        </p>
+        <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
+          {pr.weight_kg} kg{pr.reps > 0 ? ` × ${pr.reps} reps` : ''}
+        </p>
+      </div>
+      <button
+        onClick={post}
+        disabled={posted || posting}
+        className="px-3 py-2 rounded-lg text-xs font-semibold flex-shrink-0 transition-opacity"
+        style={{
+          background: posted ? 'transparent' : 'var(--accent)',
+          color: posted ? 'var(--success)' : '#fff',
+          border: posted ? '1px solid var(--success)' : 'none',
+          opacity: posting ? 0.5 : 1,
+        }}
+      >
+        {posted ? 'Posted ✓' : posting ? '…' : 'Post to feed'}
+      </button>
+    </div>
+  )
+}
+
+function PRShareScreen({ prs, userId, onDone }: { prs: NewPR[]; userId: string; onDone: () => void }) {
+  return (
+    <main
+      className="min-h-screen flex flex-col px-4 pb-10"
+      style={{ background: 'var(--bg)' }}
+    >
+      <div className="flex flex-col items-center gap-2 pt-20 mb-8 text-center">
+        <CheckCircle2 size={44} style={{ color: 'var(--success)' }} />
+        <p className="text-xl font-bold mt-1" style={{ color: 'var(--text-primary)' }}>
+          Workout saved!
+        </p>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          You hit {prs.length} new PR{prs.length > 1 ? 's' : ''} 🏆 — share to your feed?
+        </p>
+      </div>
+
+      <div className="space-y-3 mb-6">
+        {prs.map((pr) => (
+          <PRShareCard key={pr.exercise_name} pr={pr} userId={userId} />
+        ))}
+      </div>
+
+      <button
+        onClick={onDone}
+        className="w-full py-3 rounded-[10px] text-sm font-semibold"
+        style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          color: 'var(--text-primary)',
+        }}
+      >
+        Done
+      </button>
+    </main>
+  )
 }
 
 const STEPS: Exclude<Step, 'success'>[] = ['pick', 'sets', 'finish']
@@ -31,6 +131,7 @@ export default function LogPage() {
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [newPRs, setNewPRs] = useState<NewPR[]>([])
 
   const goToSets = () => {
     const updated = selectedExercises.map((ex) => {
@@ -108,8 +209,9 @@ export default function LogPage() {
           }]
         })
 
+      const achievedPRs: NewPR[] = []
+
       if (prUpserts.length > 0) {
-        // Only update if the new weight is strictly greater than existing
         for (const pr of prUpserts) {
           const { data: existing } = await supabase
             .from('personal_records')
@@ -123,12 +225,18 @@ export default function LogPage() {
               .from('personal_records')
               .upsert(pr, { onConflict: 'user_id,exercise_name' })
             if (prError) console.error('[LogPage] PR upsert:', prError.message)
+            else achievedPRs.push({ exercise_name: pr.exercise_name, weight_kg: pr.weight_kg, reps: pr.reps })
           }
         }
       }
 
-      setStep('success')
-      setTimeout(() => router.push('/history'), 1500)
+      if (achievedPRs.length > 0) {
+        setNewPRs(achievedPRs)
+        setStep('share')
+      } else {
+        setStep('success')
+        setTimeout(() => router.push('/history'), 1500)
+      }
     } catch (err) {
       console.error('[LogPage] saveWorkout threw:', err)
       setError('Something went wrong. Please try again.')
@@ -136,6 +244,10 @@ export default function LogPage() {
       clearTimeout(giveUp)
       setSaving(false)
     }
+  }
+
+  if (step === 'share') {
+    return <PRShareScreen prs={newPRs} userId={user!.id} onDone={() => { setStep('success'); setTimeout(() => router.push('/history'), 1200) }} />
   }
 
   if (step === 'success') {
@@ -155,7 +267,7 @@ export default function LogPage() {
     )
   }
 
-  const currentStepIdx = STEPS.indexOf(step as Exclude<Step, 'success'>)
+  const currentStepIdx = STEPS.indexOf(step as Exclude<Step, 'success' | 'share'>)
 
   return (
     <main className="min-h-screen flex flex-col pb-20" style={{ background: 'var(--bg)' }}>
@@ -176,7 +288,7 @@ export default function LogPage() {
 
         <div className="flex-1">
           <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
-            {STEP_LABELS[step as Exclude<Step, 'success'>]}
+            {STEP_LABELS[step as Exclude<Step, 'success' | 'share'>]}
           </h1>
         </div>
 

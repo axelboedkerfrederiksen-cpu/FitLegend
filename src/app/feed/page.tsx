@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Search, X, Users } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider'
-import { useFeedWorkouts } from '@/hooks/useWorkouts'
+import { useFeedPosts } from '@/hooks/usePosts'
 import { createClient } from '@/lib/supabase/client'
 import { withTimeout } from '@/lib/utils'
 import { Profile } from '@/lib/types'
-import FeedCard from '@/components/FeedCard'
+import PostCard from '@/components/PostCard'
 import UserAvatar from '@/components/UserAvatar'
 
 function SearchResult({
@@ -67,7 +67,7 @@ function SearchResult({
 
 export default function FeedPage() {
   const { user, loading: authLoading } = useAuth()
-  const { feed, loading: feedLoading, refetch: refetchFeed } = useFeedWorkouts(user?.id ?? null)
+  const { posts, loading: postsLoading, refetch } = useFeedPosts(user?.id ?? null)
 
   const [search, setSearch] = useState('')
   const [searchResults, setSearchResults] = useState<(Profile & { is_following: boolean })[]>([])
@@ -88,9 +88,7 @@ export default function FeedPage() {
             .limit(10)
         ),
         withTimeout(
-          sb.from('follows')
-            .select('following_id')
-            .eq('follower_id', user.id)
+          sb.from('follows').select('following_id').eq('follower_id', user.id)
         ),
       ])
 
@@ -114,7 +112,7 @@ export default function FeedPage() {
     return () => clearTimeout(t)
   }, [search, runSearch])
 
-  const loading = authLoading || feedLoading
+  const loading = authLoading || postsLoading
 
   return (
     <main className="min-h-screen pb-20" style={{ background: 'var(--bg)' }}>
@@ -173,7 +171,7 @@ export default function FeedPage() {
                     key={p.id}
                     profile={p}
                     currentUserId={user!.id}
-                    onFollowChange={() => { runSearch(search); refetchFeed() }}
+                    onFollowChange={() => { runSearch(search); refetch() }}
                   />
                 ))
               )}
@@ -182,21 +180,21 @@ export default function FeedPage() {
         </div>
       )}
 
-      {/* Feed */}
+      {/* Posts feed */}
       {loading ? (
         <div className="px-4 space-y-3">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-32 rounded-xl animate-pulse" style={{ background: 'var(--surface)' }} />
+            <div key={i} className="h-36 rounded-xl animate-pulse" style={{ background: 'var(--surface)' }} />
           ))}
         </div>
-      ) : feed.length === 0 ? (
+      ) : posts.length === 0 ? (
         <div className="flex flex-col items-center gap-3 pt-20 text-center px-4">
           <Users size={36} style={{ color: 'var(--text-muted)' }} />
           <p className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-            No workouts yet
+            Nothing here yet
           </p>
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-            Follow people to see their workouts here
+            Follow people and their PRs will show up here
           </p>
           <button
             onClick={() => setShowSearch(true)}
@@ -208,8 +206,8 @@ export default function FeedPage() {
         </div>
       ) : (
         <div className="px-4 space-y-3">
-          {feed.map((workout) => (
-            <FeedCard key={workout.id} workout={workout} />
+          {posts.map((post) => (
+            <PostCard key={post.id} post={post} />
           ))}
         </div>
       )}

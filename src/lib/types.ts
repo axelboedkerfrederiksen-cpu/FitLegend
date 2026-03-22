@@ -54,3 +54,18 @@ export interface WorkoutWithSets extends Workout {
 export interface FeedWorkout extends WorkoutWithSets {
   profiles: Profile
 }
+
+export interface Post {
+  id: string
+  user_id: string
+  type: 'pr'
+  exercise_name: string
+  weight_kg: number
+  reps: number
+  caption: string | null
+  created_at: string
+}
+
+export interface FeedPost extends Post {
+  profiles: Profile
+}

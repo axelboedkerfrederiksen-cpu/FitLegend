@@ -11,6 +11,7 @@ export interface DashboardStats {
   weeklyVolume: number | null
   latestPR: { exercise: string; weight: number } | null
   recentWorkouts: WorkoutWithSets[]
+  workoutDates: string[]
 }
 
 const EMPTY_STATS: DashboardStats = {
@@ -19,10 +20,11 @@ const EMPTY_STATS: DashboardStats = {
   weeklyVolume: null,
   latestPR: null,
   recentWorkouts: [],
+  workoutDates: [],
 }
 
-function computeStreak(createdAts: string[]): number {
-  if (!createdAts.length) return 0
+function computeStreak(createdAts: string[]): { streak: number; uniqueDates: string[] } {
+  if (!createdAts.length) return { streak: 0, uniqueDates: [] }
 
   const uniqueDates = [...new Set(createdAts.map((d) => d.slice(0, 10)))]
     .sort()
@@ -31,7 +33,7 @@ function computeStreak(createdAts: string[]): number {
   const today = new Date().toISOString().slice(0, 10)
   const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
 
-  if (uniqueDates[0] !== today && uniqueDates[0] !== yesterday) return 0
+  if (uniqueDates[0] !== today && uniqueDates[0] !== yesterday) return { streak: 0, uniqueDates }
 
   let streak = 1
   for (let i = 1; i < uniqueDates.length; i++) {
@@ -44,7 +46,7 @@ function computeStreak(createdAts: string[]): number {
       break
     }
   }
-  return streak
+  return { streak, uniqueDates }
 }
 
 function startOfWeek(): string {
@@ -146,7 +148,7 @@ export function useDashboardStats(userId: string | null) {
         ? (recentRes.value.data as WorkoutWithSets[]) ?? []
         : []
 
-    const streak = computeStreak(dates)
+    const { streak, uniqueDates } = computeStreak(dates)
 
     const weeklyVolume = weekData.reduce((sum, workout) => {
       const sets = (workout.workout_sets ?? []) as Array<{
@@ -172,6 +174,7 @@ export function useDashboardStats(userId: string | null) {
         ? { exercise: prData.exercise_name, weight: prData.weight_kg }
         : null,
       recentWorkouts: recentData,
+      workoutDates: uniqueDates,
     })
     setLoading(false)
   }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps

@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, CheckCircle2, Trophy } from 'lucide-react'
+import { ChevronLeft, CheckCircle2, Trophy, LayoutTemplate } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider'
 import { createClient } from '@/lib/supabase/client'
 import { Exercise } from '@/lib/types'
 import ExercisePicker from '@/components/ExercisePicker'
 import SetInput, { ExerciseSets, defaultRow } from '@/components/SetInput'
+import TemplatePicker from '@/components/TemplatePicker'
 import UsernameModal from '@/components/UsernameModal'
 import { getExerciseDisplayType, ExerciseDisplayType } from '@/lib/utils'
 
@@ -194,13 +195,23 @@ export default function LogPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [newPRs, setNewPRs] = useState<NewPR[]>([])
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false)
+
+  const unit = profile?.unit_preference ?? 'kg'
 
   const goToSets = () => {
     const updated = selectedExercises.map((ex) => {
-      const existing = exerciseSets.find((es) => es.exercise.id === ex.id)
+      const existing = exerciseSets.find((es) => es.exercise.name === ex.name)
       return existing ?? { exercise: ex, sets: [defaultRow(getExerciseDisplayType(ex.name, ex.muscle_group))] }
     })
     setExerciseSets(updated)
+    setStep('sets')
+  }
+
+  const handleTemplateUse = (exercises: Exercise[], sets: ExerciseSets[]) => {
+    setSelectedExercises(exercises)
+    setExerciseSets(sets)
+    setShowTemplatePicker(false)
     setStep('sets')
   }
 
@@ -234,7 +245,7 @@ export default function LogPage() {
       const setRows = exerciseSets.flatMap((es) =>
         es.sets.map((s) => ({
           workout_id: workout.id,
-          exercise_id: es.exercise.id,
+          exercise_id: es.exercise.is_custom ? null : (es.exercise.id as number),
           exercise_name: es.exercise.name,
           sets: 1,
           reps: s.reps,
@@ -378,16 +389,36 @@ export default function LogPage() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {step === 'pick' && (
-          <ExercisePicker
-            selected={selectedExercises}
-            onSelectionChange={setSelectedExercises}
-            onNext={goToSets}
-          />
+          <div className="flex flex-col">
+            {/* Use template button */}
+            {user && (
+              <div className="px-4 pt-3 pb-1">
+                <button
+                  onClick={() => setShowTemplatePicker(true)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium"
+                  style={{
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  <LayoutTemplate size={13} style={{ color: 'var(--accent)' }} />
+                  Use Template
+                </button>
+              </div>
+            )}
+            <ExercisePicker
+              selected={selectedExercises}
+              onSelectionChange={setSelectedExercises}
+              onNext={goToSets}
+              userId={user?.id}
+            />
+          </div>
         )}
 
         {step === 'sets' && (
           <div className="pt-4">
-            <SetInput exerciseSets={exerciseSets} onChange={setExerciseSets} />
+            <SetInput exerciseSets={exerciseSets} onChange={setExerciseSets} unit={unit} />
             <div className="px-4 pt-2">
               <button
                 onClick={() => setStep('finish')}
@@ -413,7 +444,7 @@ export default function LogPage() {
               >
                 {exerciseSets.map((es, i) => (
                   <div
-                    key={es.exercise.id}
+                    key={es.exercise.name}
                     className="flex items-center justify-between px-4 py-3"
                     style={{
                       background: 'var(--surface)',
@@ -475,6 +506,14 @@ export default function LogPage() {
           </div>
         )}
       </div>
+
+      {showTemplatePicker && user && (
+        <TemplatePicker
+          userId={user.id}
+          onUse={handleTemplateUse}
+          onClose={() => setShowTemplatePicker(false)}
+        />
+      )}
     </main>
   )
 }

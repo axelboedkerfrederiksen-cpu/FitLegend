@@ -4,6 +4,7 @@ export interface Profile {
   display_name: string | null
   avatar_url: string | null
   created_at: string
+  unit_preference?: 'kg' | 'lbs'
 }
 
 export interface Exercise {
@@ -11,6 +12,7 @@ export interface Exercise {
   name: string
   muscle_group: 'Push' | 'Pull' | 'Legs' | 'Core' | 'Cardio'
   icon: string
+  is_custom?: boolean
 }
 
 export interface Workout {
@@ -24,7 +26,7 @@ export interface Workout {
 export interface WorkoutSet {
   id: string
   workout_id: string
-  exercise_id: number
+  exercise_id: number | null
   exercise_name: string
   sets: number
   reps: number

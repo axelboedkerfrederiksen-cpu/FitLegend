@@ -8,6 +8,7 @@ import { useWorkouts } from '@/hooks/useWorkouts'
 import { createClient } from '@/lib/supabase/client'
 import { WorkoutWithSets } from '@/lib/types'
 import { getExerciseDisplayType } from '@/lib/utils'
+import { fmtWeight } from '@/lib/units'
 import WorkoutCard from '@/components/WorkoutCard'
 import UsernameModal from '@/components/UsernameModal'
 
@@ -39,11 +40,6 @@ function weeksInPeriod(period: Period): number {
   if (period === 'month') return new Date().getDate() / 7
   const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000)
   return dayOfYear / 7
-}
-
-function fmtVolume(kg: number) {
-  if (kg >= 1000) return `${(kg / 1000).toFixed(1)}k`
-  return Math.round(kg).toLocaleString()
 }
 
 function groupByDate(workouts: WorkoutWithSets[]): { label: string; workouts: WorkoutWithSets[] }[] {
@@ -89,6 +85,7 @@ export default function HistoryPage() {
   const [showUsernameModal, setShowUsernameModal] = useState(false)
   const [pendingShare, setPendingShare] = useState<{ name: string; weight: number; reps: number } | null>(null)
 
+  const unit = profile?.unit_preference ?? 'kg'
   const loading = authLoading || workoutsLoading
 
   const filtered = useMemo(() => {
@@ -131,11 +128,47 @@ export default function HistoryPage() {
     else refetch()
   }
 
+  const handleSaveTemplate = async (workout: WorkoutWithSets, name: string) => {
+    if (!user) return
+    const sb = createClient()
+    const { data: tmpl, error: tmplErr } = await sb
+      .from('workout_templates')
+      .insert({ user_id: user.id, name })
+      .select('id')
+      .single()
+    if (tmplErr || !tmpl) {
+      console.error('[HistoryPage] template insert:', tmplErr?.message)
+      return
+    }
+
+    // Collect unique exercises with their sets
+    const seen = new Map<string, { exercise_id: number | null; reps: number; weight_kg: number }>()
+    let order = 0
+    const rows = []
+    for (const s of workout.workout_sets) {
+      rows.push({
+        template_id: tmpl.id,
+        exercise_id: s.exercise_id,
+        exercise_name: s.exercise_name,
+        sets: s.sets,
+        reps: s.reps,
+        weight_kg: s.weight_kg,
+        sort_order: order++,
+      })
+    }
+    if (rows.length > 0) {
+      const { error: exErr } = await sb.from('workout_template_exercises').insert(rows)
+      if (exErr) console.error('[HistoryPage] template exercises insert:', exErr.message)
+    }
+  }
+
   const uniqueExercisesCount = new Set(filtered.flatMap((w) => w.workout_sets.map((s) => s.exercise_name))).size
+
+  const volumeDisplay = stats.totalVolume > 0 ? fmtWeight(stats.totalVolume, unit) : '—'
 
   const statCards = [
     { label: 'Workouts', value: stats.totalWorkouts > 0 ? String(stats.totalWorkouts) : '—' },
-    { label: 'Volume', value: stats.totalVolume > 0 ? `${fmtVolume(stats.totalVolume)} kg` : '—' },
+    { label: 'Volume', value: volumeDisplay },
     { label: 'Total sets', value: stats.totalSets > 0 ? String(stats.totalSets) : '—' },
     {
       label: period === 'today' ? 'Exercises' : 'Avg / week',
@@ -248,6 +281,8 @@ export default function HistoryPage() {
                         isLast={i === group.length - 1}
                         onShareExercise={handleShareExercise}
                         onDelete={() => handleDelete(w.id)}
+                        onSaveAsTemplate={(name) => handleSaveTemplate(w, name)}
+                        unit={unit}
                       />
                     ))}
                   </div>

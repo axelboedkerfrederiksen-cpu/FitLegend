@@ -1,15 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronRight, Share2, Trash2 } from 'lucide-react'
+import { ChevronRight, Share2, Trash2, LayoutTemplate } from 'lucide-react'
 import { WorkoutWithSets, WorkoutSet } from '@/lib/types'
 import { getExerciseDisplayType } from '@/lib/utils'
+import { fmtWeight, UnitPref } from '@/lib/units'
 
 interface Props {
   workout: WorkoutWithSets
   isLast?: boolean
   onShareExercise?: (exerciseName: string, bestWeight: number, bestReps: number) => void
   onDelete?: () => void
+  onSaveAsTemplate?: (name: string) => Promise<void>
+  unit?: UnitPref
 }
 
 function formatDate(iso: string) {
@@ -22,11 +25,13 @@ function formatDate(iso: string) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-function setDetail(s: WorkoutSet): string {
+function setDetail(s: WorkoutSet, unit: UnitPref = 'kg'): string {
   const type = getExerciseDisplayType(s.exercise_name)
   if (type === 'cardio') return s.weight_kg > 0 ? `${s.reps} min · ${s.weight_kg} km` : `${s.reps} min`
   if (type === 'timed-core') return `${s.reps}s`
-  return s.weight_kg > 0 ? `${s.sets} × ${s.reps} @ ${s.weight_kg}kg` : `${s.sets} × ${s.reps}`
+  return s.weight_kg > 0
+    ? `${s.sets} × ${s.reps} @ ${fmtWeight(Number(s.weight_kg), unit)}`
+    : `${s.sets} × ${s.reps}`
 }
 
 function totalVolume(workout: WorkoutWithSets) {
@@ -49,10 +54,15 @@ function bestSet(sets: WorkoutSet[]): WorkoutSet {
   return sets.reduce((best, s) => (Number(s.weight_kg) > Number(best.weight_kg) ? s : best), sets[0])
 }
 
-export default function WorkoutCard({ workout, isLast = false, onShareExercise, onDelete }: Props) {
+export default function WorkoutCard({ workout, isLast = false, onShareExercise, onDelete, onSaveAsTemplate, unit = 'kg' }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [shared, setShared] = useState<Set<string>>(new Set())
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [showTemplateInput, setShowTemplateInput] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [savingTemplate, setSavingTemplate] = useState(false)
+  const [templateSaved, setTemplateSaved] = useState(false)
+
   const exercises = uniqueExercises(workout)
   const volume = totalVolume(workout)
 
@@ -61,6 +71,20 @@ export default function WorkoutCard({ workout, isLast = false, onShareExercise, 
     const best = bestSet(setsForExercise)
     onShareExercise(exerciseName, Number(best.weight_kg), best.reps)
     setShared((prev) => new Set(prev).add(exerciseName))
+  }
+
+  const handleSaveTemplate = async () => {
+    if (!onSaveAsTemplate || !templateName.trim()) return
+    setSavingTemplate(true)
+    try {
+      await onSaveAsTemplate(templateName.trim())
+      setTemplateSaved(true)
+      setShowTemplateInput(false)
+      setTemplateName('')
+      setTimeout(() => setTemplateSaved(false), 2000)
+    } finally {
+      setSavingTemplate(false)
+    }
   }
 
   return (
@@ -88,7 +112,7 @@ export default function WorkoutCard({ workout, isLast = false, onShareExercise, 
             </p>
             {volume > 0 && (
               <p className="text-xs mt-1 tabular-nums" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                {volume.toLocaleString()} kg volume
+                {fmtWeight(volume, unit)} volume
               </p>
             )}
           </div>
@@ -158,7 +182,7 @@ export default function WorkoutCard({ workout, isLast = false, onShareExercise, 
                         {i + 1}
                       </span>
                       <span className="tabular-nums" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        {setDetail(s)}
+                        {setDetail(s, unit)}
                       </span>
                     </div>
                   ))}
@@ -173,38 +197,92 @@ export default function WorkoutCard({ workout, isLast = false, onShareExercise, 
             </div>
           )}
 
-          {onDelete && (
-            <div className="px-4 py-3 flex justify-end">
-              {confirmDelete ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Delete this workout?</span>
+          {/* Footer actions */}
+          <div className="px-4 py-3 flex items-center justify-between gap-2" style={{ flexWrap: 'wrap' }}>
+            {/* Save as template */}
+            {onSaveAsTemplate && (
+              <div className="flex items-center gap-2 flex-1">
+                {templateSaved ? (
+                  <span className="text-xs font-semibold" style={{ color: 'var(--success)' }}>Template saved ✓</span>
+                ) : showTemplateInput ? (
+                  <>
+                    <input
+                      type="text"
+                      placeholder="Template name"
+                      value={templateName}
+                      onChange={(e) => setTemplateName(e.target.value)}
+                      className="flex-1 px-2 py-1 rounded-md text-xs outline-none"
+                      style={{
+                        background: 'var(--bg)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-primary)',
+                        minWidth: 0,
+                      }}
+                      autoFocus
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleSaveTemplate() }}
+                    />
+                    <button
+                      onClick={() => { setShowTemplateInput(false); setTemplateName('') }}
+                      className="text-xs px-2 py-1 rounded-md"
+                      style={{ background: 'var(--border)', color: 'var(--text-secondary)' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveTemplate}
+                      disabled={!templateName.trim() || savingTemplate}
+                      className="text-xs px-2 py-1 rounded-md font-semibold text-white transition-opacity"
+                      style={{ background: 'var(--accent)', opacity: !templateName.trim() || savingTemplate ? 0.5 : 1 }}
+                    >
+                      {savingTemplate ? '…' : 'Save'}
+                    </button>
+                  </>
+                ) : (
                   <button
-                    onClick={() => setConfirmDelete(false)}
-                    className="px-2.5 py-1 rounded-md text-xs font-medium"
-                    style={{ background: 'var(--border)', color: 'var(--text-secondary)' }}
+                    onClick={() => setShowTemplateInput(true)}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium"
+                    style={{ color: 'var(--text-secondary)' }}
                   >
-                    Cancel
+                    <LayoutTemplate size={12} />
+                    Save as template
                   </button>
+                )}
+              </div>
+            )}
+
+            {onDelete && (
+              <div className="flex justify-end">
+                {confirmDelete ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Delete this workout?</span>
+                    <button
+                      onClick={() => setConfirmDelete(false)}
+                      className="px-2.5 py-1 rounded-md text-xs font-medium"
+                      style={{ background: 'var(--border)', color: 'var(--text-secondary)' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={onDelete}
+                      className="px-2.5 py-1 rounded-md text-xs font-semibold"
+                      style={{ background: 'var(--danger)', color: '#fff' }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ) : (
                   <button
-                    onClick={onDelete}
-                    className="px-2.5 py-1 rounded-md text-xs font-semibold"
-                    style={{ background: 'var(--danger)', color: '#fff' }}
+                    onClick={() => setConfirmDelete(true)}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium"
+                    style={{ color: 'var(--danger)' }}
                   >
-                    Delete
+                    <Trash2 size={12} />
+                    Delete workout
                   </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setConfirmDelete(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium"
-                  style={{ color: 'var(--danger)' }}
-                >
-                  <Trash2 size={12} />
-                  Delete workout
-                </button>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

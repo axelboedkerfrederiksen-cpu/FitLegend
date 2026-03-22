@@ -4,26 +4,22 @@ import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider'
 import { useDashboardStats } from '@/hooks/useDashboardStats'
+import { fmtWeight } from '@/lib/units'
 import UserAvatar from '@/components/UserAvatar'
 import WorkoutCard from '@/components/WorkoutCard'
+import StreakCalendar from '@/components/StreakCalendar'
 
-function fmtVolume(kg: number): string {
-  if (kg >= 1000) return `${(kg / 1000).toFixed(1)}k`
-  return Math.round(kg).toLocaleString()
-}
-
-function fmtDate(iso: string) {
-  const d = new Date(iso)
-  const now = new Date()
-  const diff = Math.floor((now.getTime() - d.getTime()) / 86_400_000)
-  if (diff === 0) return 'Today'
-  if (diff === 1) return 'Yesterday'
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+function fmtVolume(kg: number, unit: 'kg' | 'lbs'): string {
+  const val = unit === 'lbs' ? kg * 2.20462 : kg
+  if (val >= 1000) return `${(val / 1000).toFixed(1)}k`
+  return Math.round(val).toLocaleString()
 }
 
 export default function DashboardPage() {
   const { user, profile, loading: authLoading } = useAuth()
   const { stats, loading: statsLoading, error: statsError, refetch } = useDashboardStats(user?.id ?? null)
+
+  const unit = profile?.unit_preference ?? 'kg'
 
   if (authLoading) {
     return (
@@ -66,6 +62,14 @@ export default function DashboardPage() {
   ]
   const motivationalMessage = motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)]
 
+  const weeklyVolumeDisplay = stats.weeklyVolume !== null
+    ? `${fmtVolume(stats.weeklyVolume, unit)} ${unit}`
+    : null
+
+  const bestLiftDisplay = stats.latestPR
+    ? fmtWeight(stats.latestPR.weight, unit)
+    : null
+
   const statCards = [
     {
       label: 'Total Workouts',
@@ -77,11 +81,11 @@ export default function DashboardPage() {
     },
     {
       label: 'Volume This Week',
-      value: stats.weeklyVolume !== null ? `${fmtVolume(stats.weeklyVolume)} kg` : null,
+      value: weeklyVolumeDisplay,
     },
     {
       label: 'Best Lift',
-      value: stats.latestPR ? `${stats.latestPR.weight} kg` : null,
+      value: bestLiftDisplay,
       sub: stats.latestPR?.exercise,
     },
   ]
@@ -164,6 +168,17 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* Activity / streak calendar */}
+      <div className="px-4 mb-6">
+        <p className="text-xs font-semibold mb-3" style={{ color: 'var(--text-muted)' }}>Activity</p>
+        <div
+          className="p-4 rounded-xl"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        >
+          <StreakCalendar workoutDates={stats.workoutDates} loading={statsLoading} />
+        </div>
+      </div>
+
       {/* Recent workouts */}
       {statsLoading ? (
         <div className="px-4 mb-6">
@@ -195,6 +210,7 @@ export default function DashboardPage() {
                 key={workout.id}
                 workout={workout}
                 isLast={i === stats.recentWorkouts.length - 1}
+                unit={unit}
               />
             ))}
           </div>

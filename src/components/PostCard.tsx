@@ -1,8 +1,11 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Trophy, Dumbbell } from 'lucide-react'
+import { Trophy, Dumbbell, Heart } from 'lucide-react'
 import { FeedPost } from '@/lib/types'
+import { fmtWeight, UnitPref } from '@/lib/units'
+import { createClient } from '@/lib/supabase/client'
 import UserAvatar from '@/components/UserAvatar'
 
 function timeAgo(iso: string) {
@@ -16,10 +19,59 @@ function timeAgo(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-export default function PostCard({ post }: { post: FeedPost }) {
+interface Props {
+  post: FeedPost
+  currentUserId?: string
+  unit?: UnitPref
+}
+
+export default function PostCard({ post, currentUserId, unit = 'kg' }: Props) {
   const profile = post.profiles
   const displayName = profile?.display_name ?? profile?.username ?? 'Unknown'
   const isPR = post.type === 'pr'
+
+  const [likeCount, setLikeCount] = useState(0)
+  const [isLiked, setIsLiked] = useState(false)
+  const [likeLoading, setLikeLoading] = useState(false)
+
+  useEffect(() => {
+    const load = async () => {
+      const sb = createClient()
+      const { data, error } = await sb
+        .from('post_likes')
+        .select('user_id')
+        .eq('post_id', post.id)
+      if (error || !data) return
+      setLikeCount(data.length)
+      if (currentUserId) {
+        setIsLiked(data.some((r: { user_id: string }) => r.user_id === currentUserId))
+      }
+    }
+    load()
+  }, [post.id, currentUserId])
+
+  const toggleLike = async () => {
+    if (!currentUserId || likeLoading) return
+    setLikeLoading(true)
+    // Optimistic update
+    const wasLiked = isLiked
+    setIsLiked(!wasLiked)
+    setLikeCount((c) => c + (wasLiked ? -1 : 1))
+    const sb = createClient()
+    try {
+      if (wasLiked) {
+        await sb.from('post_likes').delete().eq('post_id', post.id).eq('user_id', currentUserId)
+      } else {
+        await sb.from('post_likes').upsert({ post_id: post.id, user_id: currentUserId }, { onConflict: 'post_id,user_id' })
+      }
+    } catch {
+      // Revert on error
+      setIsLiked(wasLiked)
+      setLikeCount((c) => c + (wasLiked ? 1 : -1))
+    } finally {
+      setLikeLoading(false)
+    }
+  }
 
   return (
     <div
@@ -67,7 +119,7 @@ export default function PostCard({ post }: { post: FeedPost }) {
           {post.exercise_name}
         </p>
         <p className="text-3xl font-bold" style={{ color: isPR ? 'var(--accent)' : 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-          {post.weight_kg} <span className="text-lg font-semibold">kg</span>
+          {fmtWeight(post.weight_kg, unit)}
           {post.reps > 0 && (
             <span className="text-base font-medium ml-2" style={{ color: 'var(--text-muted)' }}>
               × {post.reps} reps
@@ -80,6 +132,27 @@ export default function PostCard({ post }: { post: FeedPost }) {
             {post.caption}
           </p>
         )}
+
+        {/* Like button */}
+        <div className="flex items-center gap-2 mt-4">
+          <button
+            onClick={toggleLike}
+            disabled={!currentUserId}
+            className="flex items-center gap-1.5 transition-opacity"
+            style={{ opacity: likeLoading ? 0.5 : 1 }}
+          >
+            <Heart
+              size={18}
+              fill={isLiked ? 'var(--accent)' : 'none'}
+              style={{ color: isLiked ? 'var(--accent)' : 'var(--text-muted)' }}
+            />
+            {likeCount > 0 && (
+              <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+                {likeCount}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   )

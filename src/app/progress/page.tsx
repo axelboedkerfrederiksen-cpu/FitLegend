@@ -5,6 +5,7 @@ import { ChevronDown, TrendingUp, Share2 } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider'
 import { createClient } from '@/lib/supabase/client'
 import { withTimeout } from '@/lib/utils'
+import { fmtWeight } from '@/lib/units'
 import { PersonalRecord } from '@/lib/types'
 import ProgressChart from '@/components/ProgressChart'
 import ShareLiftModal from '@/components/ShareLiftModal'
@@ -13,6 +14,7 @@ interface PRRow extends PersonalRecord {}
 
 export default function ProgressPage() {
   const { user, profile, loading: authLoading } = useAuth()
+  const unit = profile?.unit_preference ?? 'kg'
 
   const [exercises, setExercises] = useState<string[]>([])
   const [selected, setSelected] = useState<string | null>(null)
@@ -190,7 +192,7 @@ export default function ProgressPage() {
                 className="text-3xl font-bold"
                 style={{ color: 'var(--accent)', fontVariantNumeric: 'tabular-nums' }}
               >
-                {currentPR.weight_kg} kg
+                {fmtWeight(currentPR.weight_kg, unit)}
               </p>
             ) : (
               <p className="text-2xl font-bold" style={{ color: 'var(--text-muted)' }}>—</p>
@@ -279,7 +281,7 @@ export default function ProgressPage() {
                   className="text-base font-bold"
                   style={{ color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}
                 >
-                  {pr.weight_kg} kg
+                  {fmtWeight(pr.weight_kg, unit)}
                 </p>
               </div>
             ))}

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Trash2, Plus } from 'lucide-react'
 import { Exercise } from '@/lib/types'
 import { getExerciseDisplayType, ExerciseDisplayType } from '@/lib/utils'
+import { toDisplayWeight, fromDisplayWeight, UnitPref } from '@/lib/units'
 
 // Storage semantics by exercise type:
 //   normal    → reps = reps,             weight_kg = kg
@@ -113,9 +114,12 @@ function EditableStepper({ value, step, min, integer = false, onChange }: Steppe
 interface Props {
   exerciseSets: ExerciseSets[]
   onChange: (updated: ExerciseSets[]) => void
+  unit?: UnitPref
 }
 
-export default function SetInput({ exerciseSets, onChange }: Props) {
+export default function SetInput({ exerciseSets, onChange, unit = 'kg' }: Props) {
+  const weightStep = unit === 'lbs' ? 5 : 2.5
+
   const update = (exIdx: number, setIdx: number, field: keyof SetRow, value: number) => {
     onChange(exerciseSets.map((es, ei) =>
       ei !== exIdx ? es : {
@@ -180,7 +184,7 @@ export default function SetInput({ exerciseSets, onChange }: Props) {
                 <span>Set</span>
                 {isCardio && <><span className="text-center">Min</span><span className="text-center">Km</span></>}
                 {isTimedCore && <span className="text-center">Seconds</span>}
-                {!isCardio && !isTimedCore && <><span className="text-center">Reps</span><span className="text-center">kg</span></>}
+                {!isCardio && !isTimedCore && <><span className="text-center">Reps</span><span className="text-center">{unit}</span></>}
                 <span />
               </div>
             </div>
@@ -213,7 +217,12 @@ export default function SetInput({ exerciseSets, onChange }: Props) {
                   )}
                   {!isCardio && !isTimedCore && <>
                     <EditableStepper value={set.reps} step={1} min={1} integer onChange={(n) => update(exIdx, setIdx, 'reps', n)} />
-                    <EditableStepper value={set.weight_kg} step={2.5} min={0} onChange={(n) => update(exIdx, setIdx, 'weight_kg', n)} />
+                    <EditableStepper
+                      value={toDisplayWeight(set.weight_kg, unit)}
+                      step={weightStep}
+                      min={0}
+                      onChange={(n) => update(exIdx, setIdx, 'weight_kg', fromDisplayWeight(n, unit))}
+                    />
                   </>}
 
                   <button

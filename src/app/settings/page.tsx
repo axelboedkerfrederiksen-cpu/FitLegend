@@ -5,6 +5,7 @@ import { ChevronLeft } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/AuthProvider'
 import { createClient } from '@/lib/supabase/client'
+import { UnitPref } from '@/lib/units'
 import UserAvatar from '@/components/UserAvatar'
 
 export default function SettingsPage() {
@@ -13,6 +14,7 @@ export default function SettingsPage() {
 
   const [displayName, setDisplayName] = useState('')
   const [username, setUsername] = useState('')
+  const [unitPref, setUnitPref] = useState<UnitPref>('kg')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -21,6 +23,7 @@ export default function SettingsPage() {
     if (profile) {
       setDisplayName(profile.display_name ?? '')
       setUsername(profile.username ?? '')
+      setUnitPref(profile.unit_preference ?? 'kg')
     }
   }, [profile])
 
@@ -35,6 +38,7 @@ export default function SettingsPage() {
         .update({
           display_name: displayName.trim() || null,
           username: username.trim() || null,
+          unit_preference: unitPref,
         })
         .eq('id', user.id)
 
@@ -133,6 +137,31 @@ export default function SettingsPage() {
               onFocus={(e) => (e.target.style.borderColor = 'var(--accent)')}
               onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
             />
+          </div>
+        </div>
+
+        {/* Weight unit toggle */}
+        <div>
+          <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
+            Weight unit
+          </label>
+          <div
+            className="flex rounded-xl p-1 gap-1"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+          >
+            {(['kg', 'lbs'] as UnitPref[]).map((u) => (
+              <button
+                key={u}
+                onClick={() => setUnitPref(u)}
+                className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
+                style={{
+                  background: unitPref === u ? 'var(--accent)' : 'transparent',
+                  color: unitPref === u ? '#fff' : 'var(--text-muted)',
+                }}
+              >
+                {u}
+              </button>
+            ))}
           </div>
         </div>
 

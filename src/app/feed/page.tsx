@@ -67,7 +67,7 @@ function SearchResult({
 }
 
 export default function FeedPage() {
-  const { user, loading: authLoading } = useAuth()
+  const { user, profile, loading: authLoading } = useAuth()
   const { friendPosts, ownPosts, loading: postsLoading, refetch } = useFeedPosts(user?.id ?? null)
 
   const [search, setSearch] = useState('')
@@ -232,7 +232,7 @@ export default function FeedPage() {
           )}
 
           {displayPosts.map((post) => (
-            <PostCard key={post.id} post={post} />
+            <PostCard key={post.id} post={post} currentUserId={user?.id} unit={profile?.unit_preference ?? 'kg'} />
           ))}
 
           {/* When showing friends' posts, show a link to own profile */}

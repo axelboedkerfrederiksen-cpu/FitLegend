@@ -92,7 +92,7 @@ export default function DashboardPage() {
       <div className="px-4 pt-12 pb-6 flex items-center justify-between">
         <div>
           <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>{greeting}</p>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-primary)' }}>
+          <p className="text-2xl font-bold mt-0.5" style={{ color: 'var(--text-primary)' }}>
             {motivationalMessage}
           </p>
         </div>

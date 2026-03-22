@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Settings, ChevronLeft } from 'lucide-react'
+import { Settings, ChevronLeft, Share2 } from 'lucide-react'
 import Link from 'next/link'
 import { useAuth } from '@/components/AuthProvider'
 import { createClient } from '@/lib/supabase/client'
@@ -10,6 +10,7 @@ import { withTimeout } from '@/lib/utils'
 import { Profile, WorkoutWithSets } from '@/lib/types'
 import UserAvatar from '@/components/UserAvatar'
 import WorkoutCard from '@/components/WorkoutCard'
+import ShareLiftModal from '@/components/ShareLiftModal'
 
 interface ProfileStats {
   workoutCount: number
@@ -29,6 +30,13 @@ export default function ProfilePage() {
   const [isFollowing, setIsFollowing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [followLoading, setFollowLoading] = useState(false)
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [currentUsername, setCurrentUsername] = useState<string | null | undefined>(null)
+
+  // Keep username in sync once profile loads
+  useEffect(() => {
+    if (profile && isOwn) setCurrentUsername(profile.username ?? null)
+  }, [profile, isOwn])
 
   const load = useCallback(async () => {
     if (!id) return
@@ -208,18 +216,28 @@ export default function ProfilePage() {
             {isFollowing ? 'Following' : 'Follow'}
           </button>
         ) : (
-          <Link href="/settings">
-            <div
-              className="w-full py-2.5 rounded-[10px] text-sm font-semibold text-center"
-              style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                color: 'var(--text-primary)',
-              }}
+          <div className="flex gap-2">
+            <Link href="/settings" className="flex-1">
+              <div
+                className="w-full py-2.5 rounded-[10px] text-sm font-semibold text-center"
+                style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                Edit Profile
+              </div>
+            </Link>
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-[10px] text-sm font-semibold"
+              style={{ background: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent-border)' }}
             >
-              Edit Profile
-            </div>
-          </Link>
+              <Share2 size={14} />
+              Share
+            </button>
+          </div>
         )}
       </div>
 
@@ -240,6 +258,15 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+
+      {showShareModal && user && isOwn && (
+        <ShareLiftModal
+          userId={user.id}
+          username={currentUsername}
+          onClose={() => setShowShareModal(false)}
+          onUsernameSet={(u) => setCurrentUsername(u)}
+        />
+      )}
     </main>
   )
 }

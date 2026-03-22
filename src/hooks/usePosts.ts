@@ -22,13 +22,11 @@ export function useFeedPosts(userId: string | null) {
       )
       if (followsError) console.error('[useFeedPosts] follows:', followsError.message)
 
-      if (!follows || follows.length === 0) {
-        setPosts([])
-        setLoading(false)
-        return
-      }
-
-      const followingIds = follows.map((f: { following_id: string }) => f.following_id)
+      // Always include own posts plus followed users' posts
+      const followingIds = [
+        userId,
+        ...(follows ?? []).map((f: { following_id: string }) => f.following_id),
+      ]
 
       const { data, error } = await withTimeout(
         supabase

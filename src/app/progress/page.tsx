@@ -1,17 +1,18 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ChevronDown, TrendingUp } from 'lucide-react'
+import { ChevronDown, TrendingUp, Share2 } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider'
 import { createClient } from '@/lib/supabase/client'
 import { withTimeout } from '@/lib/utils'
 import { PersonalRecord } from '@/lib/types'
 import ProgressChart from '@/components/ProgressChart'
+import ShareLiftModal from '@/components/ShareLiftModal'
 
 interface PRRow extends PersonalRecord {}
 
 export default function ProgressPage() {
-  const { user, loading: authLoading } = useAuth()
+  const { user, profile, loading: authLoading } = useAuth()
 
   const [exercises, setExercises] = useState<string[]>([])
   const [selected, setSelected] = useState<string | null>(null)
@@ -20,6 +21,8 @@ export default function ProgressPage() {
   const [loadingExercises, setLoadingExercises] = useState(true)
   const [loadingPR, setLoadingPR] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [currentUsername, setCurrentUsername] = useState<string | null | undefined>(profile?.username)
 
   // Load exercises the user has actually logged + all PRs
   useEffect(() => {
@@ -193,23 +196,45 @@ export default function ProgressPage() {
               <p className="text-2xl font-bold" style={{ color: 'var(--text-muted)' }}>—</p>
             )}
           </div>
-          {currentPR && (
-            <div className="text-right">
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                {new Date(currentPR.achieved_at).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}
-              </p>
-              {currentPR.reps > 0 && (
-                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                  {currentPR.reps} reps
+          <div className="flex items-center gap-3">
+            {currentPR && (
+              <div className="text-right">
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {new Date(currentPR.achieved_at).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
                 </p>
-              )}
-            </div>
-          )}
+                {currentPR.reps > 0 && (
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    {currentPR.reps} reps
+                  </p>
+                )}
+              </div>
+            )}
+            {currentPR && (
+              <button
+                onClick={() => setShowShareModal(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
+                style={{ background: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent-border)' }}
+              >
+                <Share2 size={12} />
+                Share
+              </button>
+            )}
+          </div>
         </div>
+      )}
+
+      {showShareModal && user && currentPR && selected && (
+        <ShareLiftModal
+          userId={user.id}
+          username={currentUsername}
+          prefill={{ exerciseName: selected, weightKg: Number(currentPR.weight_kg), reps: currentPR.reps, type: 'pr' }}
+          onClose={() => setShowShareModal(false)}
+          onUsernameSet={(u) => setCurrentUsername(u)}
+        />
       )}
 
       {/* Chart */}

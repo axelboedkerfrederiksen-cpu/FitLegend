@@ -2,12 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Plus, ClipboardList, Users, User } from 'lucide-react'
+import { Home, Plus, TrendingUp, Users, User } from 'lucide-react'
 
 const tabs = [
   { href: '/', icon: Home, label: 'Home' },
   { href: '/log', icon: Plus, label: 'Log' },
-  { href: '/history', icon: ClipboardList, label: 'History' },
+  { href: '/progress', icon: TrendingUp, label: 'Progress' },
   { href: '/feed', icon: Users, label: 'Feed' },
   { href: '/profile/me', icon: User, label: 'Profile' },
 ]

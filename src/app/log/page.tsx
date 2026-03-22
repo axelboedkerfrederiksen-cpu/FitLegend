@@ -196,6 +196,11 @@ export default function LogPage() {
   const [error, setError] = useState<string | null>(null)
   const [newPRs, setNewPRs] = useState<NewPR[]>([])
   const [showTemplatePicker, setShowTemplatePicker] = useState(false)
+  const [showTemplateNameInput, setShowTemplateNameInput] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [savingTemplate, setSavingTemplate] = useState(false)
+  const [templateSaved, setTemplateSaved] = useState(false)
+  const [templateError, setTemplateError] = useState<string | null>(null)
 
   const unit = profile?.unit_preference ?? 'kg'
 
@@ -319,6 +324,59 @@ export default function LogPage() {
     }
   }
 
+  const saveCurrentAsTemplate = async () => {
+    if (!user || exerciseSets.length === 0 || !templateName.trim()) return
+
+    setSavingTemplate(true)
+    setTemplateError(null)
+
+    try {
+      const { data: tmpl, error: tmplErr } = await supabase
+        .from('workout_templates')
+        .insert({ user_id: user.id, name: templateName.trim() })
+        .select('id')
+        .single()
+
+      if (tmplErr || !tmpl) {
+        console.error('[LogPage] template insert:', tmplErr?.message)
+        setTemplateError('Could not save template')
+        return
+      }
+
+      let order = 0
+      const rows = exerciseSets.flatMap((es) =>
+        es.sets.map((s) => ({
+          template_id: tmpl.id,
+          exercise_id: es.exercise.is_custom ? null : (es.exercise.id as number),
+          exercise_name: es.exercise.name,
+          sets: 1,
+          reps: s.reps,
+          weight_kg: s.weight_kg,
+          sort_order: order++,
+        }))
+      )
+
+      if (rows.length > 0) {
+        const { error: exErr } = await supabase.from('workout_template_exercises').insert(rows)
+        if (exErr) {
+          console.error('[LogPage] template exercises insert:', exErr.message)
+          setTemplateError('Could not save template')
+          return
+        }
+      }
+
+      setTemplateSaved(true)
+      setShowTemplateNameInput(false)
+      setTemplateName('')
+      setTimeout(() => setTemplateSaved(false), 2000)
+    } catch (err) {
+      console.error('[LogPage] saveCurrentAsTemplate threw:', err)
+      setTemplateError('Could not save template')
+    } finally {
+      setSavingTemplate(false)
+    }
+  }
+
   if (step === 'share') {
     return <PRShareScreen prs={newPRs} userId={user!.id} username={profile?.username ?? null} onDone={() => { setStep('success'); setTimeout(() => router.push('/history'), 1200) }} />
   }
@@ -420,6 +478,74 @@ export default function LogPage() {
           <div className="pt-4">
             <SetInput exerciseSets={exerciseSets} onChange={setExerciseSets} unit={unit} />
             <div className="px-4 pt-2">
+              {user && (
+                <div className="mb-3">
+                  {templateSaved ? (
+                    <p className="text-xs font-semibold" style={{ color: 'var(--success)' }}>
+                      Template saved ✓
+                    </p>
+                  ) : showTemplateNameInput ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Template name"
+                        value={templateName}
+                        onChange={(e) => setTemplateName(e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-lg text-sm outline-none"
+                        style={{
+                          background: 'var(--surface)',
+                          border: '1px solid var(--border)',
+                          color: 'var(--text-primary)',
+                          minWidth: 0,
+                        }}
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') saveCurrentAsTemplate()
+                        }}
+                      />
+                      <button
+                        onClick={() => {
+                          setShowTemplateNameInput(false)
+                          setTemplateName('')
+                          setTemplateError(null)
+                        }}
+                        className="px-3 py-2 rounded-lg text-xs font-medium"
+                        style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={saveCurrentAsTemplate}
+                        disabled={!templateName.trim() || savingTemplate}
+                        className="px-3 py-2 rounded-lg text-xs font-semibold text-white transition-opacity"
+                        style={{ background: 'var(--accent)', opacity: !templateName.trim() || savingTemplate ? 0.5 : 1 }}
+                      >
+                        {savingTemplate ? 'Saving…' : 'Save'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setShowTemplateNameInput(true)
+                        setTemplateError(null)
+                      }}
+                      className="w-full py-2.5 rounded-[10px] font-semibold text-sm"
+                      style={{
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-primary)',
+                      }}
+                    >
+                      Create Template
+                    </button>
+                  )}
+                  {templateError && (
+                    <p className="text-xs mt-2" style={{ color: 'var(--danger)' }}>
+                      {templateError}
+                    </p>
+                  )}
+                </div>
+              )}
               <button
                 onClick={() => setStep('finish')}
                 className="w-full py-3 rounded-[10px] font-semibold text-sm text-white"

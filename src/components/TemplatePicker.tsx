@@ -117,12 +117,12 @@ export default function TemplatePicker({ userId, onUse, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.5)' }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-t-2xl pb-8"
+        className="w-full max-w-lg rounded-2xl pb-8"
         style={{ background: 'var(--bg)', border: '1px solid var(--border)', maxHeight: '80vh', overflowY: 'auto' }}
         onClick={(e) => e.stopPropagation()}
       >

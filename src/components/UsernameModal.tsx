@@ -83,12 +83,12 @@ export default function UsernameModal({ userId, onSaved, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
+      className="fixed inset-0 z-[100] flex items-end justify-center"
       style={{ background: 'rgba(0,0,0,0.7)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
-        className="w-full max-w-[480px] rounded-t-2xl px-5 pt-6 pb-10"
+        className="w-full max-w-[480px] rounded-t-2xl px-5 pt-6 pb-24"
         style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}
       >
         {/* Header */}

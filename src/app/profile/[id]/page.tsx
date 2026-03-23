@@ -109,6 +109,23 @@ export default function ProfilePage() {
     }
   }
 
+  const handleDeletePost = async (postId: string) => {
+    if (!user || !isOwn) return
+    const sb = createClient()
+    const { error } = await sb
+      .from('posts')
+      .delete()
+      .eq('id', postId)
+      .eq('user_id', user.id)
+
+    if (error) {
+      console.error('[ProfilePage] delete post:', error.message)
+      return
+    }
+
+    setPosts((prev) => prev.filter((p) => p.id !== postId))
+  }
+
   if (authLoading || loading) {
     return (
       <main className="min-h-screen pb-20" style={{ background: 'var(--bg)' }}>
@@ -253,7 +270,12 @@ export default function ProfilePage() {
         ) : (
           <div className="space-y-3">
             {posts.map((post) => (
-              <PostCard key={post.id} post={post} currentUserId={user?.id} />
+              <PostCard
+                key={post.id}
+                post={post}
+                currentUserId={user?.id}
+                onDelete={isOwn ? handleDeletePost : undefined}
+              />
             ))}
           </div>
         )}

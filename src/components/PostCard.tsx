@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRef } from 'react'
 import Link from 'next/link'
-import { Trophy, Dumbbell, Heart } from 'lucide-react'
+import { Trophy, Dumbbell, Heart, Trash2, MoreHorizontal, Pencil } from 'lucide-react'
 import { FeedPost } from '@/lib/types'
 import { fmtWeight, UnitPref } from '@/lib/units'
 import { createClient } from '@/lib/supabase/client'
@@ -23,16 +24,27 @@ interface Props {
   post: FeedPost
   currentUserId?: string
   unit?: UnitPref
+  onDelete?: (postId: string) => Promise<void> | void
 }
 
-export default function PostCard({ post, currentUserId, unit = 'kg' }: Props) {
-  const profile = post.profiles
+export default function PostCard({ post, currentUserId, unit = 'kg', onDelete }: Props) {
+  const [editablePost, setEditablePost] = useState(post)
+  const profile = editablePost.profiles
   const displayName = profile?.display_name ?? profile?.username ?? 'Unknown'
-  const isPR = post.type === 'pr'
+  const isPR = editablePost.type === 'pr'
+  const isOwnPost = !!currentUserId && editablePost.user_id === currentUserId
 
   const [likeCount, setLikeCount] = useState(0)
   const [isLiked, setIsLiked] = useState(false)
   const [likeLoading, setLikeLoading] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [editLoading, setEditLoading] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    setEditablePost(post)
+  }, [post])
 
   useEffect(() => {
     const load = async () => {
@@ -40,7 +52,7 @@ export default function PostCard({ post, currentUserId, unit = 'kg' }: Props) {
       const { data, error } = await sb
         .from('post_likes')
         .select('user_id')
-        .eq('post_id', post.id)
+        .eq('post_id', editablePost.id)
       if (error || !data) return
       setLikeCount(data.length)
       if (currentUserId) {
@@ -48,7 +60,24 @@ export default function PostCard({ post, currentUserId, unit = 'kg' }: Props) {
       }
     }
     load()
-  }, [post.id, currentUserId])
+  }, [editablePost.id, currentUserId])
+
+  useEffect(() => {
+    const onDocClick = (event: MouseEvent) => {
+      if (!menuRef.current) return
+      if (!menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+
+    if (menuOpen) {
+      document.addEventListener('mousedown', onDocClick)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+    }
+  }, [menuOpen])
 
   const toggleLike = async () => {
     if (!currentUserId || likeLoading) return
@@ -63,13 +92,13 @@ export default function PostCard({ post, currentUserId, unit = 'kg' }: Props) {
         const { error } = await sb
           .from('post_likes')
           .delete()
-          .eq('post_id', post.id)
+          .eq('post_id', editablePost.id)
           .eq('user_id', currentUserId)
         if (error) throw error
       } else {
         const { error } = await sb
           .from('post_likes')
-          .upsert({ post_id: post.id, user_id: currentUserId }, { onConflict: 'post_id,user_id' })
+          .upsert({ post_id: editablePost.id, user_id: currentUserId }, { onConflict: 'post_id,user_id' })
         if (error) throw error
       }
     } catch (err) {
@@ -79,6 +108,74 @@ export default function PostCard({ post, currentUserId, unit = 'kg' }: Props) {
       setLikeCount((c) => c + (wasLiked ? 1 : -1))
     } finally {
       setLikeLoading(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!isOwnPost || !onDelete || deleteLoading) return
+    const confirmed = window.confirm('Delete this post? This cannot be undone.')
+    if (!confirmed) return
+
+    setMenuOpen(false)
+    setDeleteLoading(true)
+    try {
+      await onDelete(editablePost.id)
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
+
+  const handleEdit = async () => {
+    if (!isOwnPost || !currentUserId || editLoading) return
+
+    const nextExercise = window.prompt('Exercise name', editablePost.exercise_name)
+    if (nextExercise === null) return
+    const exerciseName = nextExercise.trim()
+    if (!exerciseName) return
+
+    const nextWeightInput = window.prompt('Weight in kg', String(editablePost.weight_kg))
+    if (nextWeightInput === null) return
+    const weightKg = Number(nextWeightInput)
+    if (!Number.isFinite(weightKg) || weightKg < 0) return
+
+    const nextRepsInput = window.prompt('Reps', String(editablePost.reps))
+    if (nextRepsInput === null) return
+    const reps = Number(nextRepsInput)
+    if (!Number.isFinite(reps) || reps < 0) return
+
+    const nextCaptionInput = window.prompt('Caption (optional)', editablePost.caption ?? '')
+    if (nextCaptionInput === null) return
+    const caption = nextCaptionInput.trim() || null
+
+    setEditLoading(true)
+    setMenuOpen(false)
+    try {
+      const sb = createClient()
+      const { error } = await sb
+        .from('posts')
+        .update({
+          exercise_name: exerciseName,
+          weight_kg: weightKg,
+          reps,
+          caption,
+        })
+        .eq('id', editablePost.id)
+        .eq('user_id', currentUserId)
+
+      if (error) {
+        console.error('[PostCard] edit post:', error.message)
+        return
+      }
+
+      setEditablePost((prev) => ({
+        ...prev,
+        exercise_name: exerciseName,
+        weight_kg: weightKg,
+        reps,
+        caption,
+      }))
+    } finally {
+      setEditLoading(false)
     }
   }
 
@@ -100,7 +197,7 @@ export default function PostCard({ post, currentUserId, unit = 'kg' }: Props) {
             </p>
           </div>
           <p className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
-            {timeAgo(post.created_at)}
+            {timeAgo(editablePost.created_at)}
           </p>
         </div>
       </Link>
@@ -125,25 +222,25 @@ export default function PostCard({ post, currentUserId, unit = 'kg' }: Props) {
         </div>
 
         <p className="text-xl font-bold mb-1" style={{ color: 'var(--text-primary)' }}>
-          {post.exercise_name}
+          {editablePost.exercise_name}
         </p>
         <p className="text-3xl font-bold" style={{ color: isPR ? 'var(--accent)' : 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-          {fmtWeight(post.weight_kg, unit)}
-          {post.reps > 0 && (
+          {fmtWeight(editablePost.weight_kg, unit)}
+          {editablePost.reps > 0 && (
             <span className="text-base font-medium ml-2" style={{ color: 'var(--text-muted)' }}>
-              × {post.reps} reps
+              × {editablePost.reps} reps
             </span>
           )}
         </p>
 
-        {post.caption && (
+        {editablePost.caption && (
           <p className="text-sm mt-3" style={{ color: 'var(--text-secondary)' }}>
-            {post.caption}
+            {editablePost.caption}
           </p>
         )}
 
         {/* Like button */}
-        <div className="flex items-center gap-2 mt-4">
+        <div className="flex items-center justify-between gap-2 mt-4">
           <button
             onClick={toggleLike}
             disabled={!currentUserId}
@@ -159,6 +256,44 @@ export default function PostCard({ post, currentUserId, unit = 'kg' }: Props) {
               {likeCount} {likeCount === 1 ? 'like' : 'likes'}
             </span>
           </button>
+
+          {isOwnPost && onDelete && (
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                disabled={deleteLoading || editLoading}
+                className="w-8 h-8 rounded-lg flex items-center justify-center"
+                style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+                aria-label="Post actions"
+              >
+                <MoreHorizontal size={16} />
+              </button>
+
+              {menuOpen && (
+                <div
+                  className="absolute right-0 bottom-10 min-w-[140px] rounded-lg overflow-hidden"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', zIndex: 20 }}
+                >
+                  <button
+                    onClick={handleEdit}
+                    className="w-full px-3 py-2 text-left text-sm flex items-center gap-2"
+                    style={{ color: 'var(--text-primary)', borderBottom: '1px solid var(--border)' }}
+                  >
+                    <Pencil size={14} />
+                    Edit
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    className="w-full px-3 py-2 text-left text-sm flex items-center gap-2"
+                    style={{ color: '#ef4444' }}
+                  >
+                    <Trash2 size={14} />
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,0 +1,13 @@
+# Query: const callbackUrl = new URL('/auth/callback', window.location.origin)
+# ContextLines: 1
+
+1 result - 1 file
+
+src/app/login/page.tsx:
+  11      const supabase = createClient()
+  12:     const callbackUrl = new URL('/auth/callback', 
+  /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.navigator.standalone
+    ? 'fitlegend://app'
+    : window.location.origin
+)
+  13      callbackUrl.searchParams.set('next', '/feed')

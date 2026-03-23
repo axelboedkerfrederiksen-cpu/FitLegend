@@ -9,7 +9,11 @@ const FEATURES = ['Log every lift', 'Auto-detect PRs', 'Progress charts', 'Socia
 export default function LoginPage() {
   async function handleGoogleSignIn() {
     const supabase = createClient()
-    const callbackUrl = new URL('/auth/callback', window.location.origin)
+    const callbackUrl = new URL('/auth/callback',
+      /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.navigator.standalone
+        ? 'fitlegend://app'
+        : window.location.origin
+    )
     callbackUrl.searchParams.set('next', '/feed')
     await supabase.auth.signInWithOAuth({
       provider: 'google',

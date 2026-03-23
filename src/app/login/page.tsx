@@ -10,7 +10,7 @@ export default function LoginPage() {
   async function handleGoogleSignIn() {
     const supabase = createClient()
     const callbackUrl = new URL('/auth/callback',
-      /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.navigator.standalone
+      /iPhone|iPad|iPod/.test(navigator.userAgent) && !(navigator as Navigator & { standalone?: boolean }).standalone
         ? 'fitlegend://app'
         : window.location.origin
     )

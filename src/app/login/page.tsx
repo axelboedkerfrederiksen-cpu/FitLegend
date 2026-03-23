@@ -9,12 +9,8 @@ const FEATURES = ['Log every lift', 'Auto-detect PRs', 'Progress charts', 'Socia
 export default function LoginPage() {
   async function handleGoogleSignIn() {
     const supabase = createClient()
-    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
-    const callbackUrl = new URL('/auth/callback',
-      isIOS ? 'fitlegend://app' : window.location.origin
-    )
+    const callbackUrl = new URL('/auth/callback', 'https://fitlegend.vercel.app')
     callbackUrl.searchParams.set('next', '/feed')
-    if (isIOS) callbackUrl.searchParams.set('client', 'ios')
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {

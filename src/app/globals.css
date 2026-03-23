@@ -32,15 +32,12 @@ body {
 }
 
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  display: none;
 }
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 2px;
+
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 input[type='text'],

@@ -6,22 +6,7 @@ export const dynamic = 'force-dynamic'
 
 const FEATURES = ['Log every lift', 'Auto-detect PRs', 'Progress charts', 'Social feed']
 
-async function handleGoogleSignIn() {
-  const supabase = createClient()
-  const callbackUrl = new URL('/auth/callback', window.location.origin)
-  callbackUrl.searchParams.set('next', '/feed')
-  await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: callbackUrl.toString(),
-      skipBrowserRedirect: false,
-      scopes: 'openid email profile',
-      queryParams: {
-        prompt: 'select_account',
-      },
-    },
-  })
-}export default function LoginPage() {
+export default function LoginPage() {
   async function handleGoogleSignIn() {
     const supabase = createClient()
     const callbackUrl = new URL('/auth/callback', window.location.origin)
@@ -36,29 +21,6 @@ async function handleGoogleSignIn() {
           prompt: 'select_account',
         },
       },
-    })
-  }async function handleGoogleSignIn() {
-  const supabase = createClient()
-  const callbackUrl = new URL('/auth/callback', window.location.origin)
-  callbackUrl.searchParams.set('next', '/feed')
-  await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: callbackUrl.toString(),
-      skipBrowserRedirect: false,
-      scopes: 'openid email profile',
-      queryParams: {
-        prompt: 'select_account',
-      },
-    },
-  })
-}export default function LoginPage() {
-  async function handleGoogleSignIn() {
-    const supabase = createClient()
-    const origin = window.location.origin
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${origin}/auth/callback` },
     })
   }
 

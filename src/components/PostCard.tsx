@@ -1,9 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Trophy, Dumbbell, Heart, Trash2, MoreHorizontal, Pencil } from 'lucide-react'
+import { Trophy, Dumbbell, Heart, Trash2, MoreHorizontal, Pencil, X } from 'lucide-react'
 import { FeedPost } from '@/lib/types'
 import { fmtWeight, UnitPref } from '@/lib/units'
 import { createClient } from '@/lib/supabase/client'
@@ -40,6 +39,11 @@ export default function PostCard({ post, currentUserId, unit = 'kg', onDelete }:
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [editLoading, setEditLoading] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [editMode, setEditMode] = useState(false)
+  const [editExercise, setEditExercise] = useState('')
+  const [editWeight, setEditWeight] = useState('')
+  const [editReps, setEditReps] = useState('')
+  const [editCaption, setEditCaption] = useState('')
   const menuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -125,40 +129,32 @@ export default function PostCard({ post, currentUserId, unit = 'kg', onDelete }:
     }
   }
 
-  const handleEdit = async () => {
+  const openEditModal = () => {
+    setEditExercise(editablePost.exercise_name)
+    setEditWeight(String(editablePost.weight_kg))
+    setEditReps(String(editablePost.reps))
+    setEditCaption(editablePost.caption ?? '')
+    setMenuOpen(false)
+    setEditMode(true)
+  }
+
+  const handleEditSave = async () => {
     if (!isOwnPost || !currentUserId || editLoading) return
 
-    const nextExercise = window.prompt('Exercise name', editablePost.exercise_name)
-    if (nextExercise === null) return
-    const exerciseName = nextExercise.trim()
+    const exerciseName = editExercise.trim()
     if (!exerciseName) return
-
-    const nextWeightInput = window.prompt('Weight in kg', String(editablePost.weight_kg))
-    if (nextWeightInput === null) return
-    const weightKg = Number(nextWeightInput)
+    const weightKg = Number(editWeight)
     if (!Number.isFinite(weightKg) || weightKg < 0) return
-
-    const nextRepsInput = window.prompt('Reps', String(editablePost.reps))
-    if (nextRepsInput === null) return
-    const reps = Number(nextRepsInput)
+    const reps = Number(editReps)
     if (!Number.isFinite(reps) || reps < 0) return
-
-    const nextCaptionInput = window.prompt('Caption (optional)', editablePost.caption ?? '')
-    if (nextCaptionInput === null) return
-    const caption = nextCaptionInput.trim() || null
+    const caption = editCaption.trim() || null
 
     setEditLoading(true)
-    setMenuOpen(false)
     try {
       const sb = createClient()
       const { error } = await sb
         .from('posts')
-        .update({
-          exercise_name: exerciseName,
-          weight_kg: weightKg,
-          reps,
-          caption,
-        })
+        .update({ exercise_name: exerciseName, weight_kg: weightKg, reps, caption })
         .eq('id', editablePost.id)
         .eq('user_id', currentUserId)
 
@@ -167,13 +163,8 @@ export default function PostCard({ post, currentUserId, unit = 'kg', onDelete }:
         return
       }
 
-      setEditablePost((prev) => ({
-        ...prev,
-        exercise_name: exerciseName,
-        weight_kg: weightKg,
-        reps,
-        caption,
-      }))
+      setEditablePost((prev) => ({ ...prev, exercise_name: exerciseName, weight_kg: weightKg, reps, caption }))
+      setEditMode(false)
     } finally {
       setEditLoading(false)
     }
@@ -275,7 +266,7 @@ export default function PostCard({ post, currentUserId, unit = 'kg', onDelete }:
                   style={{ background: 'var(--surface)', border: '1px solid var(--border)', zIndex: 20 }}
                 >
                   <button
-                    onClick={handleEdit}
+                    onClick={openEditModal}
                     className="w-full px-3 py-2 text-left text-sm flex items-center gap-2"
                     style={{ color: 'var(--text-primary)', borderBottom: '1px solid var(--border)' }}
                   >
@@ -296,6 +287,94 @@ export default function PostCard({ post, currentUserId, unit = 'kg', onDelete }:
           )}
         </div>
       </div>
+
+      {/* Edit Modal */}
+      {editMode && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setEditMode(false)}
+        >
+          <div
+            className="w-full max-w-[480px] rounded-t-2xl px-5 pt-5 pb-8 animate-in slide-in-from-bottom duration-200"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderBottom: 'none' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-5">
+              <p className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>Edit Post</p>
+              <button
+                onClick={() => setEditMode(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center"
+                style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
+              >
+                <X size={16} style={{ color: 'var(--text-muted)' }} />
+              </button>
+            </div>
+
+            {/* Fields */}
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Exercise</label>
+                <input
+                  type="text"
+                  value={editExercise}
+                  onChange={(e) => setEditExercise(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
+                  style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Weight (kg)</label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={editWeight}
+                    onChange={(e) => setEditWeight(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
+                    style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Reps</label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={editReps}
+                    onChange={(e) => setEditReps(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
+                    style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Caption (optional)</label>
+                <input
+                  type="text"
+                  value={editCaption}
+                  onChange={(e) => setEditCaption(e.target.value)}
+                  placeholder="Add a caption…"
+                  className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
+                  style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                />
+              </div>
+            </div>
+
+            {/* Save */}
+            <button
+              onClick={handleEditSave}
+              disabled={editLoading || !editExercise.trim()}
+              className="w-full mt-5 py-3 rounded-[10px] text-sm font-semibold text-white transition-opacity"
+              style={{ background: 'var(--accent)', opacity: editLoading || !editExercise.trim() ? 0.5 : 1 }}
+            >
+              {editLoading ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

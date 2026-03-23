@@ -7,6 +7,7 @@ export async function GET(request: Request) {
   const oauthError = searchParams.get('error')
   const oauthErrorDescription = searchParams.get('error_description')
   const next = searchParams.get('next') ?? '/feed'
+  const isIOS = searchParams.get('client') === 'ios'
 
   if (oauthError) {
     console.error('[auth/callback] OAuth error from Supabase:')
@@ -57,7 +58,12 @@ export async function GET(request: Request) {
   }
 
   console.log('[auth/callback] Session exchanged for:', data.user?.email)
-  const redirectResponse = NextResponse.redirect(`${origin}${next}`)
+
+  const finalRedirect = isIOS
+    ? `fitlegend://app/auth/callback?next=${encodeURIComponent(next)}`
+    : `${origin}${next}`
+
+  const redirectResponse = NextResponse.redirect(finalRedirect)
   response.cookies.getAll().forEach((cookie) => {
     redirectResponse.cookies.set(cookie)
   })

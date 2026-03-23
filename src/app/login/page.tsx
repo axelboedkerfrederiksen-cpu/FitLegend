@@ -9,13 +9,10 @@ const FEATURES = ['Log every lift', 'Auto-detect PRs', 'Progress charts', 'Socia
 export default function LoginPage() {
   async function handleGoogleSignIn() {
     const supabase = createClient()
-    const callbackUrl = new URL('/auth/callback', 'https://fitlegend.vercel.app')
-    callbackUrl.searchParams.set('next', '/feed')
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: callbackUrl.toString(),
-        skipBrowserRedirect: false,
+        redirectTo: 'fitlegend://app',
         scopes: 'openid email profile',
         queryParams: { prompt: 'select_account' },
       },

@@ -96,7 +96,8 @@ export function useDashboardStats(userId: string | null) {
       withTimeout(
         supabase
           .from('workout_sets')
-          .select('exercise_name, weight_kg')
+          .select('exercise_name, weight_kg, workouts!inner(user_id)')
+          .eq('workouts.user_id', userId)
           .gt('weight_kg', 0)
           .order('weight_kg', { ascending: false })
           .limit(1)

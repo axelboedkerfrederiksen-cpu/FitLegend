@@ -49,7 +49,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${spaceMono.variable} ${barlowCondensed.variable}`}>
-      <body>
+      <body suppressHydrationWarning>
         <div className="mx-auto w-full" style={{ maxWidth: 480 }}>
           <AuthProvider>
             {children}

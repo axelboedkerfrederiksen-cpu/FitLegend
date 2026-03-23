@@ -65,6 +65,7 @@ export interface Post {
   weight_kg: number
   reps: number
   caption: string | null
+  video_url: string | null
   created_at: string
 }
 

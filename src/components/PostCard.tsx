@@ -230,6 +230,20 @@ export default function PostCard({ post, currentUserId, unit = 'kg', onDelete }:
           </p>
         )}
 
+        {/* Proof video */}
+        {editablePost.video_url && (
+          <div className="mt-3 rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+            <video
+              src={editablePost.video_url}
+              controls
+              playsInline
+              preload="metadata"
+              className="w-full max-h-64 object-cover"
+              style={{ background: '#000', display: 'block' }}
+            />
+          </div>
+        )}
+
         {/* Like button */}
         <div className="flex items-center justify-between gap-2 mt-4">
           <button
@@ -296,8 +310,8 @@ export default function PostCard({ post, currentUserId, unit = 'kg', onDelete }:
           onClick={() => setEditMode(false)}
         >
           <div
-            className="w-full max-w-[480px] rounded-t-2xl px-5 pt-5 pb-8 animate-in slide-in-from-bottom duration-200"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderBottom: 'none' }}
+            className="w-full max-w-[480px] rounded-t-2xl px-5 pt-5 animate-in slide-in-from-bottom duration-200"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderBottom: 'none', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 88px)' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}

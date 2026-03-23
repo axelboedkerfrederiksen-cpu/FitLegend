@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { X, Share2, Trophy, Search } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { X, Share2, Trophy, Search, Video, CheckCircle2, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import UsernameModal from '@/components/UsernameModal'
 
@@ -31,6 +31,12 @@ export default function ShareLiftModal({ userId, username, prefill, onClose, onP
   const [posted, setPosted] = useState(false)
   const [currentUsername, setCurrentUsername] = useState(username)
   const [showUsernameModal, setShowUsernameModal] = useState(false)
+  const [videoFile, setVideoFile] = useState<File | null>(null)
+  const [videoPreview, setVideoPreview] = useState<string | null>(null)
+  const [videoError, setVideoError] = useState<string | null>(null)
+  const videoInputRef = useRef<HTMLInputElement | null>(null)
+
+  const currentType = prefill?.type ?? (selected?.is_pr ? 'pr' : selected ? 'lift' : null)
 
   useEffect(() => {
     if (prefill) return
@@ -86,6 +92,27 @@ export default function ShareLiftModal({ userId, username, prefill, onClose, onP
     return exercises.filter((e) => e.exercise_name.toLowerCase().includes(q))
   }, [exercises, search])
 
+  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setVideoError(null)
+    const file = e.target.files?.[0] ?? null
+    if (!file) return
+    const MAX_MB = 100
+    if (file.size > MAX_MB * 1024 * 1024) {
+      setVideoError(`Video must be under ${MAX_MB} MB`)
+      return
+    }
+    setVideoFile(file)
+    setVideoPreview(URL.createObjectURL(file))
+  }
+
+  const removeVideo = () => {
+    setVideoFile(null)
+    if (videoPreview) URL.revokeObjectURL(videoPreview)
+    setVideoPreview(null)
+    setVideoError(null)
+    if (videoInputRef.current) videoInputRef.current.value = ''
+  }
+
   const doPost = async () => {
     if (!currentUsername) {
       setShowUsernameModal(true)
@@ -93,10 +120,28 @@ export default function ShareLiftModal({ userId, username, prefill, onClose, onP
     }
     setPosting(true)
     try {
+      let video_url: string | null = null
+
+      if (videoFile) {
+        const sb = createClient()
+        const ext = videoFile.name.split('.').pop() ?? 'mp4'
+        const path = `${userId}/${Date.now()}.${ext}`
+        const { error: uploadError } = await sb.storage
+          .from('post-videos')
+          .upload(path, videoFile, { contentType: videoFile.type, upsert: false })
+        if (uploadError) {
+          console.error('[ShareLiftModal] video upload:', uploadError.message)
+          setVideoError('Video upload failed. Try again.')
+          return
+        }
+        const { data: urlData } = sb.storage.from('post-videos').getPublicUrl(path)
+        video_url = urlData.publicUrl
+      }
+
       const payload = prefill
-        ? { user_id: userId, type: prefill.type, exercise_name: prefill.exerciseName, weight_kg: prefill.weightKg, reps: prefill.reps }
+        ? { user_id: userId, type: prefill.type, exercise_name: prefill.exerciseName, weight_kg: prefill.weightKg, reps: prefill.reps, video_url }
         : selected
-        ? { user_id: userId, type: selected.is_pr ? 'pr' as const : 'lift' as const, exercise_name: selected.exercise_name, weight_kg: selected.best_weight, reps: selected.best_reps }
+        ? { user_id: userId, type: selected.is_pr ? 'pr' as const : 'lift' as const, exercise_name: selected.exercise_name, weight_kg: selected.best_weight, reps: selected.best_reps, video_url }
         : null
       if (!payload) return
       const { error } = await createClient().from('posts').insert(payload)
@@ -249,6 +294,57 @@ export default function ShareLiftModal({ userId, username, prefill, onClose, onP
             </div>
           )}
 
+          {/* Video proof section — shown for PR posts */}
+          {(currentType === 'pr' || currentType === null) && (
+            <div className="mb-4">
+              <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>Proof video (optional)</p>
+              {videoPreview ? (
+                <div className="relative rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                  <video
+                    src={videoPreview}
+                    controls
+                    playsInline
+                    className="w-full max-h-48 object-cover"
+                    style={{ background: '#000' }}
+                  />
+                  <button
+                    onClick={removeVideo}
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
+                    style={{ background: 'rgba(0,0,0,0.6)' }}
+                  >
+                    <X size={14} style={{ color: '#fff' }} />
+                  </button>
+                  <div className="flex items-center gap-1.5 px-3 py-2" style={{ background: 'rgba(0,0,0,0.4)', position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+                    <CheckCircle2 size={13} style={{ color: '#22c55e' }} />
+                    <p className="text-xs font-medium" style={{ color: '#fff' }}>Ready to upload</p>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => videoInputRef.current?.click()}
+                  className="w-full py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-medium"
+                  style={{ border: '1px dashed var(--border)', color: 'var(--text-muted)' }}
+                >
+                  <Video size={16} />
+                  Attach a video clip
+                </button>
+              )}
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={handleVideoChange}
+              />
+              {videoError && (
+                <div className="flex items-center gap-1.5 mt-2">
+                  <AlertCircle size={13} style={{ color: '#ef4444' }} />
+                  <p className="text-xs" style={{ color: '#ef4444' }}>{videoError}</p>
+                </div>
+              )}
+            </div>
+          )}
+
           <button
             onClick={doPost}
             disabled={!canPost || posting || posted}
@@ -260,7 +356,7 @@ export default function ShareLiftModal({ userId, username, prefill, onClose, onP
               opacity: (!canPost || posting) && !posted ? 0.4 : 1,
             }}
           >
-            {posted ? 'Posted ✓' : posting ? 'Posting…' : 'Post to feed'}
+            {posted ? 'Posted ✓' : posting ? (videoFile ? 'Uploading…' : 'Posting…') : 'Post to feed'}
           </button>
         </div>
       </div>

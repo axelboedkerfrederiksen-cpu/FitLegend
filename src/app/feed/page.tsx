@@ -208,6 +208,11 @@ export default function FeedPage() {
   const hasFriendPosts = friendPosts.length > 0
   const displayPosts = hasFriendPosts ? friendPosts : ownPosts
 
+  const handleDeletePost = async (postId: string) => {
+    const { error } = await createClient().from('posts').delete().eq('id', postId)
+    if (!error) refetch()
+  }
+
   return (
     <main className="min-h-screen pb-20" style={{ background: 'var(--bg)' }}>
       {/* Header */}
@@ -386,7 +391,7 @@ export default function FeedPage() {
           )}
 
           {displayPosts.map((post) => (
-            <PostCard key={post.id} post={post} currentUserId={user?.id} unit={profile?.unit_preference ?? 'kg'} />
+            <PostCard key={post.id} post={post} currentUserId={user?.id} unit={profile?.unit_preference ?? 'kg'} onDelete={handleDeletePost} />
           ))}
 
           {/* When showing friends' posts, show a link to own profile */}

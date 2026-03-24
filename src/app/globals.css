@@ -47,3 +47,13 @@ textarea {
   /* Prevent iOS auto-zoom on focus (must be 16px+) */
   font-size: 16px !important;
 }
+
+/* iOS safe area fixes */
+:root {
+  --safe-top: env(safe-area-inset-top);
+  --safe-bottom: env(safe-area-inset-bottom);
+}
+
+main {
+  padding-top: max(env(safe-area-inset-top), 16px);
+}

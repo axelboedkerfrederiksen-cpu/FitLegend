@@ -53,3 +53,17 @@ textarea {
   --safe-top: env(safe-area-inset-top);
   --safe-bottom: env(safe-area-inset-bottom);
 }
+
+/* Prevent overscroll/bounce effect */
+html, body {
+  overscroll-behavior: none;
+  position: fixed;
+  width: 100%;
+  overflow: hidden;
+}
+
+#__next {
+  overflow-y: auto;
+  height: 100vh;
+  -webkit-overflow-scrolling: touch;
+}

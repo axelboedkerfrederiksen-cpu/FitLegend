@@ -114,9 +114,16 @@ export default function DashboardPage() {
       <div className="px-4 mb-6">
         <Link href="/log">
           <div
-            onClick={() => haptic('workout-saved')}
             className="w-full py-3 rounded-[10px] flex items-center justify-center font-semibold text-sm text-white"
             style={{ background: 'var(--accent)' }}
+            onClick={() => {
+              const wk = (window as any).webkit
+              if (wk?.messageHandlers?.haptic) {
+                wk.messageHandlers.haptic.postMessage('workout-saved')
+              } else {
+                alert('webkit ikke tilgængelig')
+              }
+            }}
           >
             Log Workout
           </div>

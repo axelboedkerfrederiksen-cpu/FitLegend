@@ -55,15 +55,6 @@ textarea {
 }
 
 /* Prevent overscroll/bounce effect */
-html, body {
-  overscroll-behavior: none;
-  position: fixed;
-  width: 100%;
-  overflow: hidden;
-}
-
-#__next {
-  overflow-y: auto;
-  height: 100vh;
-  -webkit-overflow-scrolling: touch;
+body {
+  overscroll-behavior-y: none;
 }

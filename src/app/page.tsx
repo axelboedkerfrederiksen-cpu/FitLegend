@@ -8,6 +8,7 @@ import { fmtWeight } from '@/lib/units'
 import UserAvatar from '@/components/UserAvatar'
 import WorkoutCard from '@/components/WorkoutCard'
 import StreakCalendar from '@/components/StreakCalendar'
+import { haptic } from '@/lib/haptics'
 
 function fmtVolume(kg: number, unit: 'kg' | 'lbs'): string {
   const val = unit === 'lbs' ? kg * 2.20462 : kg
@@ -113,6 +114,7 @@ export default function DashboardPage() {
       <div className="px-4 mb-6">
         <Link href="/log">
           <div
+            onClick={() => haptic('workout-saved')}
             className="w-full py-3 rounded-[10px] flex items-center justify-center font-semibold text-sm text-white"
             style={{ background: 'var(--accent)' }}
           >

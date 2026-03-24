@@ -58,3 +58,9 @@ textarea {
 body {
   overscroll-behavior-y: none;
 }
+
+@supports (-webkit-touch-callout: none) {
+  .min-h-screen {
+    min-height: -webkit-fill-available;
+  }
+}

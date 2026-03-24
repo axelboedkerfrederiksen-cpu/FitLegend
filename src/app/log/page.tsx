@@ -11,6 +11,7 @@ import SetInput, { ExerciseSets, defaultRow } from '@/components/SetInput'
 import TemplatePicker from '@/components/TemplatePicker'
 import UsernameModal from '@/components/UsernameModal'
 import { getExerciseDisplayType, ExerciseDisplayType } from '@/lib/utils'
+import { haptic } from '@/lib/haptics'
 
 type Step = 'pick' | 'sets' | 'finish' | 'share' | 'success'
 
@@ -304,14 +305,17 @@ export default function LogPage() {
               .upsert(pr, { onConflict: 'user_id,exercise_name' })
             if (prError) console.error('[LogPage] PR upsert:', prError.message)
             else achievedPRs.push({ exercise_name: pr.exercise_name, weight_kg: pr.weight_kg, reps: pr.reps })
+            haptic('pr-hit')
           }
         }
       }
 
       if (achievedPRs.length > 0) {
         setNewPRs(achievedPRs)
+        haptic('workout-saved')
         setStep('share')
       } else {
+        haptic('workout-saved')
         setStep('success')
         setTimeout(() => router.push('/history'), 1500)
       }

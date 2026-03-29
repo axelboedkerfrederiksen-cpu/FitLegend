@@ -55,12 +55,33 @@ export const viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${spaceMono.variable} ${barlowCondensed.variable}`} style={{ height: '-webkit-fill-available' }}>
-      <body suppressHydrationWarning style={{ minHeight: '-webkit-fill-available' }}>
-        <div className="mx-auto w-full" style={{ maxWidth: 480 }}>
+    <html
+      lang="en"
+      className={`${inter.variable} ${spaceMono.variable} ${barlowCondensed.variable}`}
+      style={{ height: '-webkit-fill-available', overflow: 'hidden' }}
+    >
+      <body
+        suppressHydrationWarning
+        style={{
+          height: '-webkit-fill-available',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <div
+          className="mx-auto w-full"
+          style={{
+            maxWidth: 480,
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
           <AuthProvider>
-            {children}
             <ConditionalNavbar />
+            <main className="flex-1 overflow-y-auto overflow-x-hidden">{children}</main>
           </AuthProvider>
         </div>
       </body>

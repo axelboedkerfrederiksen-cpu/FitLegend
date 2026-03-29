@@ -34,6 +34,7 @@ export default function ShareLiftModal({ userId, username, prefill, onClose, onP
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [videoPreview, setVideoPreview] = useState<string | null>(null)
   const [videoError, setVideoError] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const videoInputRef = useRef<HTMLInputElement | null>(null)
 
   const currentType = prefill?.type ?? (selected?.is_pr ? 'pr' : selected ? 'lift' : null)
@@ -114,6 +115,7 @@ export default function ShareLiftModal({ userId, username, prefill, onClose, onP
   }
 
   const doPost = async () => {
+    setSubmitError(null)
     if (!currentUsername) {
       setShowUsernameModal(true)
       return
@@ -130,8 +132,17 @@ export default function ShareLiftModal({ userId, username, prefill, onClose, onP
           .from('post-videos')
           .upload(path, videoFile, { contentType: videoFile.type, upsert: false })
         if (uploadError) {
-          console.error('[ShareLiftModal] video upload:', uploadError.message)
-          setVideoError('Video upload failed. Try again.')
+          const uploadErrorInfo = {
+            message: uploadError.message,
+            code: uploadError.name,
+            details: null,
+            hint: null,
+            userId,
+            path,
+          }
+          console.error('[ShareLiftModal] video upload failed', uploadErrorInfo)
+          setVideoError(`Video upload failed: ${JSON.stringify(uploadErrorInfo)}`)
+          setSubmitError(`Video upload failed: ${JSON.stringify(uploadErrorInfo)}`)
           return
         }
         const { data: urlData } = sb.storage.from('post-videos').getPublicUrl(path)
@@ -145,12 +156,25 @@ export default function ShareLiftModal({ userId, username, prefill, onClose, onP
         : null
       if (!payload) return
       const { error } = await createClient().from('posts').insert(payload)
-      if (error) console.error('[ShareLiftModal] post insert:', error.message)
-      else {
+      if (error) {
+        const errorInfo = {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          userId,
+        }
+        console.error('[ShareLiftModal] post insert failed', errorInfo)
+        setSubmitError(`Post failed: ${JSON.stringify(errorInfo)}`)
+      } else {
         setPosted(true)
         onPosted?.()
         setTimeout(onClose, 900)
       }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error('[ShareLiftModal] doPost exception', { message, userId })
+      setSubmitError(`Post exception: ${message}`)
     } finally {
       setPosting(false)
     }
@@ -358,6 +382,12 @@ export default function ShareLiftModal({ userId, username, prefill, onClose, onP
           >
             {posted ? 'Posted ✓' : posting ? (videoFile ? 'Uploading…' : 'Posting…') : 'Post to feed'}
           </button>
+
+          {submitError && (
+            <p className="text-xs mt-2 break-all" style={{ color: 'var(--danger)' }}>
+              {submitError}
+            </p>
+          )}
         </div>
       </div>
 

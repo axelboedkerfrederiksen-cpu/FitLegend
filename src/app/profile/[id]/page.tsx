@@ -32,6 +32,7 @@ export default function ProfilePage() {
   const [followLoading, setFollowLoading] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
   const [currentUsername, setCurrentUsername] = useState<string | null | undefined>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // Keep username in sync once profile loads
   useEffect(() => {
@@ -111,19 +112,35 @@ export default function ProfilePage() {
 
   const handleDeletePost = async (postId: string) => {
     if (!user || !isOwn) return
+    setDeleteError(null)
     const sb = createClient()
-    const { error } = await sb
-      .from('posts')
-      .delete()
-      .eq('id', postId)
-      .eq('user_id', user.id)
+    try {
+      const { error } = await sb
+        .from('posts')
+        .delete()
+        .eq('id', postId)
+        .eq('user_id', user.id)
 
-    if (error) {
-      console.error('[ProfilePage] delete post:', error.message)
-      return
+      if (error) {
+        const errorInfo = {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          postId,
+          userId: user.id,
+        }
+        console.error('[ProfilePage] delete post failed', errorInfo)
+        setDeleteError(`Delete failed: ${JSON.stringify(errorInfo)}`)
+        return
+      }
+
+      setPosts((prev) => prev.filter((p) => p.id !== postId))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error('[ProfilePage] delete post exception', { message, postId, userId: user.id })
+      setDeleteError(`Delete exception: ${message}`)
     }
-
-    setPosts((prev) => prev.filter((p) => p.id !== postId))
   }
 
   if (authLoading || loading) {
@@ -263,6 +280,11 @@ export default function ProfilePage() {
         <p className="text-xs font-semibold mb-3" style={{ color: 'var(--text-muted)' }}>
           {isOwn ? 'Your posts' : 'Posts'}
         </p>
+        {deleteError && (
+          <p className="text-xs mb-3 break-all" style={{ color: 'var(--danger)' }}>
+            {deleteError}
+          </p>
+        )}
         {posts.length === 0 ? (
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
             {isOwn ? 'No posts yet. Share a lift from the Progress tab or History.' : 'No posts yet.'}

@@ -7,9 +7,9 @@ import Link from 'next/link'
 import { useAuth } from '@/components/AuthProvider'
 import { createClient } from '@/lib/supabase/client'
 import { withTimeout } from '@/lib/utils'
-import { Profile, FeedPost } from '@/lib/types'
+import { Profile, FeedWorkout } from '@/lib/types'
 import UserAvatar from '@/components/UserAvatar'
-import PostCard from '@/components/PostCard'
+import FeedCard from '@/components/FeedCard'
 import ShareLiftModal from '@/components/ShareLiftModal'
 
 interface ProfileStats {
@@ -26,7 +26,7 @@ export default function ProfilePage() {
 
   const [profile, setProfile] = useState<Profile | null>(null)
   const [stats, setStats] = useState<ProfileStats>({ workoutCount: 0, followerCount: 0, followingCount: 0 })
-  const [posts, setPosts] = useState<FeedPost[]>([])
+  const [workouts, setWorkouts] = useState<FeedWorkout[]>([])
   const [isFollowing, setIsFollowing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [followLoading, setFollowLoading] = useState(false)
@@ -44,15 +44,15 @@ export default function ProfilePage() {
     setLoading(true)
     try {
       const sb = createClient()
-      const [profileRes, workoutCountRes, followerRes, followingRes, postsRes, followCheckRes] =
+      const [profileRes, workoutCountRes, followerRes, followingRes, workoutsRes, followCheckRes] =
         await Promise.allSettled([
           withTimeout(sb.from('profiles').select('*').eq('id', id).single()),
           withTimeout(sb.from('workouts').select('id', { count: 'exact', head: true }).eq('user_id', id)),
           withTimeout(sb.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', id)),
           withTimeout(sb.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', id)),
           withTimeout(
-            sb.from('posts')
-              .select('*, profiles(*)')
+            sb.from('workouts')
+              .select('*, workout_sets(*), profiles(*)')
               .eq('user_id', id)
               .order('created_at', { ascending: false })
               .limit(50)
@@ -76,8 +76,8 @@ export default function ProfilePage() {
         followerCount: followerRes.status === 'fulfilled' ? (followerRes.value.count ?? 0) : 0,
         followingCount: followingRes.status === 'fulfilled' ? (followingRes.value.count ?? 0) : 0,
       })
-      if (postsRes.status === 'fulfilled' && !postsRes.value.error) {
-        setPosts((postsRes.value.data as FeedPost[]) ?? [])
+      if (workoutsRes.status === 'fulfilled' && !workoutsRes.value.error) {
+        setWorkouts((workoutsRes.value.data as FeedWorkout[]) ?? [])
       }
       if (followCheckRes.status === 'fulfilled') {
         setIsFollowing(!!(followCheckRes.value as { data: unknown }).data)
@@ -110,15 +110,15 @@ export default function ProfilePage() {
     }
   }
 
-  const handleDeletePost = async (postId: string) => {
+  const handleDeleteWorkout = async (workoutId: string) => {
     if (!user || !isOwn) return
     setDeleteError(null)
     const sb = createClient()
     try {
       const { error } = await sb
-        .from('posts')
+        .from('workouts')
         .delete()
-        .eq('id', postId)
+        .eq('id', workoutId)
         .eq('user_id', user.id)
 
       if (error) {
@@ -127,18 +127,18 @@ export default function ProfilePage() {
           code: error.code,
           details: error.details,
           hint: error.hint,
-          postId,
+          workoutId,
           userId: user.id,
         }
-        console.error('[ProfilePage] delete post failed', errorInfo)
+        console.error('[ProfilePage] delete workout failed', errorInfo)
         setDeleteError(`Delete failed: ${JSON.stringify(errorInfo)}`)
         return
       }
 
-      setPosts((prev) => prev.filter((p) => p.id !== postId))
+      setWorkouts((prev) => prev.filter((w) => w.id !== workoutId))
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      console.error('[ProfilePage] delete post exception', { message, postId, userId: user.id })
+      console.error('[ProfilePage] delete workout exception', { message, workoutId, userId: user.id })
       setDeleteError(`Delete exception: ${message}`)
     }
   }
@@ -275,28 +275,27 @@ export default function ProfilePage() {
         )}
       </div>
 
-      {/* Posts */}
+      {/* Workouts */}
       <div className="px-4">
         <p className="text-xs font-semibold mb-3" style={{ color: 'var(--text-muted)' }}>
-          {isOwn ? 'Your posts' : 'Posts'}
+          {isOwn ? 'Your workouts' : 'Workouts'}
         </p>
         {deleteError && (
           <p className="text-xs mb-3 break-all" style={{ color: 'var(--danger)' }}>
             {deleteError}
           </p>
         )}
-        {posts.length === 0 ? (
+        {workouts.length === 0 ? (
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-            {isOwn ? 'No posts yet. Share a lift from the Progress tab or History.' : 'No posts yet.'}
+            {isOwn ? 'No workouts yet. Log your first workout to see it here.' : 'No workouts yet.'}
           </p>
         ) : (
           <div className="space-y-3">
-            {posts.map((post) => (
-              <PostCard
-                key={post.id}
-                post={post}
-                currentUserId={user?.id}
-                onDelete={isOwn ? handleDeletePost : undefined}
+            {workouts.map((workout) => (
+              <FeedCard
+                key={workout.id}
+                workout={workout}
+                onDelete={isOwn ? () => handleDeleteWorkout(workout.id) : undefined}
               />
             ))}
           </div>

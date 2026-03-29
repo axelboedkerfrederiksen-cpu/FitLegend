@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Trash2 } from 'lucide-react'
 import { FeedWorkout, WorkoutSet } from '@/lib/types'
 import { getExerciseDisplayType } from '@/lib/utils'
 import UserAvatar from '@/components/UserAvatar'
@@ -41,8 +41,9 @@ function totalVolume(workout: FeedWorkout) {
   }, 0)
 }
 
-export default function FeedCard({ workout }: { workout: FeedWorkout }) {
+export default function FeedCard({ workout, onDelete }: { workout: FeedWorkout; onDelete?: () => void }) {
   const [expanded, setExpanded] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const profile = workout.profiles
   const exercises = uniqueExercises(workout)
   const volume = totalVolume(workout)
@@ -133,6 +134,41 @@ export default function FeedCard({ workout }: { workout: FeedWorkout }) {
           {workout.notes && (
             <div className="px-4 py-3">
               <p className="text-xs italic" style={{ color: 'var(--text-muted)' }}>{workout.notes}</p>
+            </div>
+          )}
+
+          {onDelete && (
+            <div className="px-4 py-3" style={{ borderTop: '1px solid var(--border)' }}>
+              {confirmDelete ? (
+                <div className="flex items-center justify-end gap-2">
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Delete this workout?</span>
+                  <button
+                    onClick={() => setConfirmDelete(false)}
+                    className="px-2.5 py-1 rounded-md text-xs"
+                    style={{ background: 'var(--border)', color: 'var(--text-secondary)' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={onDelete}
+                    className="px-2.5 py-1 rounded-md text-xs font-semibold"
+                    style={{ background: 'var(--danger)', color: '#fff' }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              ) : (
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setConfirmDelete(true)}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium"
+                    style={{ color: 'var(--danger)' }}
+                  >
+                    <Trash2 size={12} />
+                    Delete workout
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
